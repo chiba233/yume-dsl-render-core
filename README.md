@@ -22,7 +22,6 @@ Concrete output (HTML, Vue, React, ...) is defined by your `TokenRenderer`.
 |---------|------|
 | [`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL) | Parser core — text to token tree |
 | **`@yume-dsl/render-core`** | Render core — token tree to output nodes (this package) |
-| [`@yume-dsl/markdown-it-rich-text`](https://github.com/chiba233/markdown-it-yume-dsl-rich-text) | markdown-it adapter |
 
 ---
 

@@ -54,19 +54,30 @@ const flattenTokenText = (
 export const flattenText = (value: string | TextToken[]): string =>
   flattenTokenText(value, new WeakSet<object>(), new WeakSet<object>());
 
+type ResolvedRenderResult<TNode> = Exclude<RenderResult<TNode>, { type: "defer" }>;
+
 const iterateRendered = function* <TNode>(
-  result: RenderResult<TNode>,
+  result: ResolvedRenderResult<TNode>,
   createText: (text: string) => TNode,
   token: TextToken,
 ): Generator<TNode> {
-  if (result.type === "tokens") {
-    yield* result.tokens;
-    return;
-  }
-
-  if (result.type === "text") {
-    const text = result.text ?? flattenText(token.value);
-    yield createText(text);
+  switch (result.type) {
+    case "tokens":
+      yield* result.tokens;
+      return;
+    case "text": {
+      const text = result.text ?? flattenText(token.value);
+      yield createText(text);
+      return;
+    }
+    case "empty":
+      return;
+    default: {
+      const _exhaustive: never = result;
+      throw new Error(
+        `Unexpected render result type: ${(_exhaustive as ResolvedRenderResult<TNode>).type}`,
+      );
+    }
   }
 };
 
@@ -74,12 +85,15 @@ const resolveRenderResult = <TNode, TEnv>(
   token: TextToken,
   renderer: TokenRenderer<TNode, TEnv>,
   helpers: RenderHelpers<TNode, TEnv>,
-): RenderResult<TNode> => {
+): ResolvedRenderResult<TNode> => {
   const result = renderer.render(token, helpers);
   if (result.type !== "defer") return result;
 
   if (renderer.fallbackRender) {
-    return renderer.fallbackRender(token, helpers);
+    const fallbackResult = renderer.fallbackRender(token, helpers);
+    if (fallbackResult.type !== "defer") {
+      return fallbackResult;
+    }
   }
 
   if (renderer.strict ?? false) {
@@ -97,11 +111,10 @@ const renderTokenIterable = function* <TNode, TEnv>(
 ): Generator<TNode> {
   for (const token of tokens) {
     if (token.type === "text") {
-      if (typeof token.value === "string") {
-        yield renderer.createText(token.value);
-      } else {
-        yield renderer.createText(flattenText(token.value));
+      if (typeof token.value !== "string") {
+        throw new Error("DSL text token value must be a string");
       }
+      yield renderer.createText(token.value);
       continue;
     }
 
@@ -126,11 +139,17 @@ export const renderTokens = function* <TNode, TEnv = unknown>(
 ): Generator<TNode> {
   const activeTokens = new WeakSet<object>();
 
+  const renderChildren = function* (value: string | TextToken[]): Generator<TNode> {
+    if (typeof value === "string") {
+      yield renderer.createText(value);
+      return;
+    }
+
+    yield* renderTokenIterable(value, renderer, helpers, activeTokens);
+  };
+
   const helpers: RenderHelpers<TNode, TEnv> = {
-    renderChildren: (value) =>
-      typeof value === "string"
-        ? [renderer.createText(value)]
-        : renderTokenIterable(value, renderer, helpers, activeTokens),
+    renderChildren,
     flattenText,
     env,
   };

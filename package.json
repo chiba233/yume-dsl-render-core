@@ -12,7 +12,8 @@
         "require": "./dist/index.d.cts"
       },
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
     }
   },
   "files": [
@@ -35,11 +36,19 @@
   ],
   "author": "Hoshino Yumeka",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chiba233/yume-dsl-render-core.git"
+  },
+  "homepage": "https://github.com/chiba233/yume-dsl-render-core#readme",
+  "bugs": {
+    "url": "https://github.com/chiba233/yume-dsl-render-core/issues"
+  },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
-    "yume-dsl-rich-text": "workspace:*"
+    "yume-dsl-rich-text": "^0.1.13"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
