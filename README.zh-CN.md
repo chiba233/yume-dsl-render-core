@@ -1,10 +1,10 @@
 [English](./README.md) | **中文**
 
-# @yume-dsl/token-walker
+# yume-dsl-token-walker
 
 <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" />
 
-[![npm](https://img.shields.io/npm/v/@yume-dsl/token-walker)](https://www.npmjs.com/package/@yume-dsl/token-walker)
+[![npm](https://img.shields.io/npm/v/yume-dsl-token-walker)](https://www.npmjs.com/package/yume-dsl-token-walker)
 [![GitHub](https://img.shields.io/badge/GitHub-chiba233%2Fyume--dsl--token--walker-181717?logo=github)](https://github.com/chiba233/yume-dsl-token-walker)
 
 通用的、惰性的、基于 generator 的
@@ -19,16 +19,16 @@
 | 包                                                           | 角色                     |
 |-------------------------------------------------------------|------------------------|
 | [`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL) | 解析器 — 文本到 token 树      |
-| **`@yume-dsl/token-walker`**                                | 解释器 — token 树到输出节点（本包） |
+| **`yume-dsl-token-walker`**                                 | 解释器 — token 树到输出节点（本包） |
 
 ---
 
 ## 安装
 
 ```bash
-npm install @yume-dsl/token-walker
+npm install yume-dsl-token-walker
 # 或
-pnpm add @yume-dsl/token-walker
+pnpm add yume-dsl-token-walker
 ```
 
 `yume-dsl-rich-text` 是依赖项，会自动安装。
@@ -39,7 +39,7 @@ pnpm add @yume-dsl/token-walker
 
 ```ts
 import { parseRichText, createSimpleInlineHandlers } from "yume-dsl-rich-text";
-import { interpretTokens } from "@yume-dsl/token-walker";
+import { interpretTokens } from "yume-dsl-token-walker";
 
 const handlers = createSimpleInlineHandlers(["bold", "italic"]);
 const tokens = parseRichText("$$bold(a $$italic(b)$$ c)$$", { handlers });
@@ -68,7 +68,7 @@ const html = Array.from(
 
 ```ts
 import { createSimpleInlineHandlers, createParser } from "yume-dsl-rich-text";
-import { interpretTokens } from "@yume-dsl/token-walker";
+import { interpretTokens } from "yume-dsl-token-walker";
 
 const dsl = createParser({
   handlers: createSimpleInlineHandlers(["bold"]),
@@ -157,7 +157,7 @@ const debugRuleset = {
 
 ```ts
 import { createSimpleInlineHandlers, createSimpleBlockHandlers, createParser } from "yume-dsl-rich-text";
-import { interpretTokens } from "@yume-dsl/token-walker";
+import { interpretTokens } from "yume-dsl-token-walker";
 
 const dsl = createParser({
   handlers: {
@@ -452,7 +452,7 @@ interface InterpretHelpers<TNode, TEnv = unknown> {
 - 新增 `onError` 错误观察回调 — 在抛出前调用，携带 `{ error, phase, token, env }` 上下文
 - 错误阶段：`"interpret"`、`"flatten"`、`"traversal"`、`"internal"`
 - `onUnhandled` 策略函数抛出的错误现在也会经过 `onError` 回调
-- 包重命名为 `@yume-dsl/token-walker`
+- 包重命名为 `yume-dsl-token-walker`
 - `renderTokens` → `interpretTokens`，`TokenRenderer` → `InterpretRuleset`
 - `defer` → `unhandled`，`empty` → `drop`
 - `{ type: "text"; text?: string }` 拆分为 `{ type: "text"; text: string }` + `{ type: "flatten" }`

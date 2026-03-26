@@ -1,10 +1,13 @@
 {
-  "name": "@yume-dsl/token-walker",
+  "name": "yume-dsl-token-walker",
   "version": "0.1.0",
   "description": "interpret / walk / execute token tree",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": {
       "types": {

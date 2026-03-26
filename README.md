@@ -1,10 +1,10 @@
 **English** | [中文](./README.zh-CN.md)
 
-# @yume-dsl/token-walker
+# yume-dsl-token-walker
 
 <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" />
 
-[![npm](https://img.shields.io/npm/v/@yume-dsl/token-walker)](https://www.npmjs.com/package/@yume-dsl/token-walker)
+[![npm](https://img.shields.io/npm/v/yume-dsl-token-walker)](https://www.npmjs.com/package/yume-dsl-token-walker)
 [![GitHub](https://img.shields.io/badge/GitHub-chiba233%2Fyume--dsl--token--walker-181717?logo=github)](https://github.com/chiba233/yume-dsl-token-walker)
 
 A generic, lazy, generator-based token tree interpreter for
@@ -19,16 +19,16 @@ You provide rules. It walks the tree, yields output nodes, and gets out of the w
 | Package                                                     | Role                                                    |
 |-------------------------------------------------------------|---------------------------------------------------------|
 | [`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL) | Parser — text to token tree                             |
-| **`@yume-dsl/token-walker`**                                | Interpreter — token tree to output nodes (this package) |
+| **`yume-dsl-token-walker`**                                 | Interpreter — token tree to output nodes (this package) |
 
 ---
 
 ## Install
 
 ```bash
-npm install @yume-dsl/token-walker
+npm install yume-dsl-token-walker
 # or
-pnpm add @yume-dsl/token-walker
+pnpm add yume-dsl-token-walker
 ```
 
 `yume-dsl-rich-text` is a dependency and will be installed automatically.
@@ -39,7 +39,7 @@ pnpm add @yume-dsl/token-walker
 
 ```ts
 import { parseRichText, createSimpleInlineHandlers } from "yume-dsl-rich-text";
-import { interpretTokens } from "@yume-dsl/token-walker";
+import { interpretTokens } from "yume-dsl-token-walker";
 
 const handlers = createSimpleInlineHandlers(["bold", "italic"]);
 const tokens = parseRichText("$$bold(a $$italic(b)$$ c)$$", { handlers });
@@ -68,7 +68,7 @@ const html = Array.from(
 
 ```ts
 import { createSimpleInlineHandlers, createParser } from "yume-dsl-rich-text";
-import { interpretTokens } from "@yume-dsl/token-walker";
+import { interpretTokens } from "yume-dsl-token-walker";
 
 const dsl = createParser({
   handlers: createSimpleInlineHandlers(["bold"]),
@@ -157,7 +157,7 @@ Sometimes you do not want to recursively interpret a subtree. You just want its 
 
 ```ts
 import { createSimpleInlineHandlers, createSimpleBlockHandlers, createParser } from "yume-dsl-rich-text";
-import { interpretTokens } from "@yume-dsl/token-walker";
+import { interpretTokens } from "yume-dsl-token-walker";
 
 const dsl = createParser({
   handlers: {
@@ -457,7 +457,7 @@ interface InterpretHelpers<TNode, TEnv = unknown> {
 - Added `onError` observer — called with `{ error, phase, token, env }` before any error is thrown
 - Error phases: `"interpret"`, `"flatten"`, `"traversal"`, `"internal"`
 - Errors from `onUnhandled` strategy functions are now caught and routed through `onError`
-- Renamed package to `@yume-dsl/token-walker`
+- Renamed package to `yume-dsl-token-walker`
 - `renderTokens` → `interpretTokens`, `TokenRenderer` → `InterpretRuleset`
 - `defer` → `unhandled`, `empty` → `drop`
 - Split `{ type: "text"; text?: string }` into `{ type: "text"; text: string }` + `{ type: "flatten" }`
