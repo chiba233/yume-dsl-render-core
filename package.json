@@ -1,7 +1,7 @@
 {
   "name": "yume-dsl-token-walker",
-  "version": "0.1.0",
-  "description": "interpret / walk / execute token tree",
+  "version": "0.1.1",
+  "description": "Token walker core that interprets yume-dsl-rich-text token trees",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",

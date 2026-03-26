@@ -10,11 +10,55 @@
 A generic, lazy, generator-based token tree interpreter for
 [`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL).
 
+The package is named **token-walker** because its core job is to *walk* a token tree node by node.
+The public API is called `interpretTokens` because from the caller's perspective, you are *interpreting* tokens into
+output — the walking is an implementation detail.
+
 You provide rules. It walks the tree, yields output nodes, and gets out of the way.
 
 ---
 
+## Table of Contents
+
+- [Ecosystem](#ecosystem)
+- [Install](#install)
+- [Quick Start](#quick-start)
+- [Exports](#exports)
+- [Examples](#examples)
+  - [Use env to inject runtime context](#use-env-to-inject-runtime-context)
+  - [Customize onUnhandled](#customize-onunhandled)
+  - [Use flattenText inside a handler](#use-flattentext-inside-a-handler)
+  - [Return structured nodes](#return-structured-nodes-instead-of-strings)
+  - [Drop a token entirely](#drop-a-token-entirely)
+- [API — Core](#api--core)
+  - [interpretTokens](#interprettokenstokens-ruleset-env)
+  - [flattenText](#flattentextvalue)
+- [API — Helpers](#api--helpers)
+  - [createRuleset](#createrulesetruleset)
+  - [fromHandlerMap](#fromhandlermaphandlers)
+  - [debugUnhandled](#debugunhandledformat)
+  - [collectNodes](#collectnodesiterable)
+- [Types](#types)
+  - [InterpretRuleset](#interpretruleset)
+  - [InterpretResult](#interpretresult)
+  - [ResolvedResult](#resolvedresult)
+  - [UnhandledStrategy](#unhandledstrategy)
+  - [InterpretHelpers](#interprethelpers)
+- [Error Handling](#error-handling)
+  - [onError](#onerror)
+  - [Error phases](#error-phases)
+  - [Logging errors without stopping iteration](#logging-errors-without-stopping-iteration)
+- [Safety](#safety)
+- [Changelog](#changelog)
+- [License](#license)
+
+---
+
 ## Ecosystem
+
+```
+text ──▶ yume-dsl-rich-text (parse) ──▶ TextToken[] ──▶ yume-dsl-token-walker (interpret) ──▶ TNode[]
+```
 
 | Package                                                     | Role                                                    |
 |-------------------------------------------------------------|---------------------------------------------------------|
@@ -41,8 +85,8 @@ pnpm add yume-dsl-token-walker
 import { parseRichText, createSimpleInlineHandlers } from "yume-dsl-rich-text";
 import { interpretTokens } from "yume-dsl-token-walker";
 
-const handlers = createSimpleInlineHandlers(["bold", "italic"]);
-const tokens = parseRichText("$$bold(a $$italic(b)$$ c)$$", { handlers });
+const handlers = createSimpleInlineHandlers(["bold"]);
+const tokens = parseRichText("Hello $$bold(world)$$", { handlers });
 
 const html = Array.from(
   interpretTokens(tokens, {
@@ -50,19 +94,37 @@ const html = Array.from(
     interpret: (token, helpers) => {
       if (token.type === "bold")
         return { type: "nodes", nodes: ["<strong>", ...helpers.interpretChildren(token.value), "</strong>"] };
-      if (token.type === "italic")
-        return { type: "nodes", nodes: ["<em>", ...helpers.interpretChildren(token.value), "</em>"] };
       return { type: "unhandled" };
     },
   }, {}),
 ).join("");
 
-// → "<strong>a <em>b</em> c</strong>"
+// → "Hello <strong>world</strong>"
 ```
 
 ---
 
-## More Examples
+## Exports
+
+All public exports at a glance:
+
+| Export              | Kind     | Description                                                                       |
+|---------------------|----------|-----------------------------------------------------------------------------------|
+| `interpretTokens`   | function | Walk a token tree and yield output nodes (core)                                   |
+| `flattenText`       | function | Extract plain text from a token value (standalone, does not go through `onError`) |
+| `createRuleset`     | helper   | Identity function for `InterpretRuleset` type inference                           |
+| `fromHandlerMap`    | helper   | Build an `interpret` function from a `Record<type, handler>` map                  |
+| `debugUnhandled`    | helper   | Create an `onUnhandled` function that renders visible placeholders                |
+| `collectNodes`      | helper   | `Array.from` sugar — collect lazy `Iterable<TNode>` into an array                 |
+| `InterpretRuleset`  | type     | Ruleset interface passed to `interpretTokens`                                     |
+| `InterpretResult`   | type     | Return type of `interpret` (5 variants)                                           |
+| `ResolvedResult`    | type     | `InterpretResult` minus `"unhandled"`                                             |
+| `InterpretHelpers`  | type     | Helpers object passed to `interpret` and strategy functions                       |
+| `UnhandledStrategy` | type     | `"throw" \| "flatten" \| "drop" \| function`                                      |
+
+---
+
+## Examples
 
 ### Use `env` to inject runtime context
 
@@ -265,7 +327,7 @@ Use `"drop"` when a token is metadata-only and should produce no output.
 
 ---
 
-## API
+## API — Core
 
 ### `interpretTokens(tokens, ruleset, env)`
 
@@ -291,9 +353,82 @@ Companion utility. Recursively extracts plain text from a `string | TextToken[]`
 const flattenText: (value: string | TextToken[]) => string;
 ```
 
+> **Boundary note:** `flattenText` is a standalone export and does **not** go through `onError`. Only errors raised
+> inside `interpretTokens` are observed by `onError`.
+
 ---
 
-## InterpretRuleset
+## API — Helpers
+
+Optional utilities that do not affect the core. Import only what you need.
+
+### `createRuleset(ruleset)`
+
+Identity function that enables full type inference for `InterpretRuleset`:
+
+```ts
+import { createRuleset } from "yume-dsl-token-walker";
+
+const ruleset = createRuleset({
+  createText: (text) => text,
+  interpret: (token) => ({ type: "unhandled" }),
+});
+```
+
+### `fromHandlerMap(handlers)`
+
+Table-driven `interpret` — maps token types to handler functions:
+
+```ts
+import { createRuleset, fromHandlerMap } from "yume-dsl-token-walker";
+
+const ruleset = createRuleset({
+  createText: (text) => text,
+  interpret: fromHandlerMap({
+    bold: (token, helpers) => ({
+      type: "nodes",
+      nodes: ["<strong>", ...helpers.interpretChildren(token.value), "</strong>"],
+    }),
+    italic: (token, helpers) => ({
+      type: "nodes",
+      nodes: ["<em>", ...helpers.interpretChildren(token.value), "</em>"],
+    }),
+  }),
+});
+```
+
+Unmatched tokens automatically return `{ type: "unhandled" }`.
+
+### `debugUnhandled(format?)`
+
+Returns an `onUnhandled` function that renders unhandled tokens as visible placeholders. Useful for debugging, testing,
+and token visualization:
+
+```ts
+import { debugUnhandled } from "yume-dsl-token-walker";
+
+const ruleset = createRuleset({
+  createText: (text) => text,
+  interpret: () => ({ type: "unhandled" }),
+  onUnhandled: debugUnhandled(), // → "[unhandled:bold]"
+});
+```
+
+### `collectNodes(iterable)`
+
+Sugar for `Array.from`. Collects a lazy `Iterable<TNode>` into an array:
+
+```ts
+import { interpretTokens, collectNodes } from "yume-dsl-token-walker";
+
+const nodes = collectNodes(interpretTokens(tokens, ruleset, env));
+```
+
+---
+
+## Types
+
+### InterpretRuleset
 
 The ruleset you pass to `interpretTokens`:
 
@@ -318,9 +453,7 @@ interface InterpretRuleset<TNode, TEnv = unknown> {
 | `onUnhandled` | What to do when `interpret` returns `"unhandled"` (default: `"flatten"`) |
 | `onError`     | Optional observer called before any error is thrown                      |
 
----
-
-## InterpretResult
+### InterpretResult
 
 The return type of `interpret`:
 
@@ -341,9 +474,15 @@ type InterpretResult<TNode> =
 | `"unhandled"` | This token has no handler — delegate to `onUnhandled` strategy |
 | `"drop"`      | Emit nothing                                                   |
 
----
+### ResolvedResult
 
-## UnhandledStrategy
+`InterpretResult<TNode>` minus `{ type: "unhandled" }`. Used as the return type for `onUnhandled` strategy functions.
+
+```ts
+type ResolvedResult<TNode> = Exclude<InterpretResult<TNode>, { type: "unhandled" }>;
+```
+
+### UnhandledStrategy
 
 Controls what happens when `interpret` returns `{ type: "unhandled" }`:
 
@@ -362,11 +501,29 @@ type UnhandledStrategy<TNode, TEnv = unknown> =
 | `"drop"`    | Emit nothing                                                                  |
 | function    | Custom resolution — must return a `ResolvedResult` (no `"unhandled"` allowed) |
 
-`ResolvedResult<TNode>` = `InterpretResult<TNode>` minus `{ type: "unhandled" }`.
+### InterpretHelpers
+
+Passed to `interpret` and strategy functions:
+
+```ts
+interface InterpretHelpers<TNode, TEnv = unknown> {
+  interpretChildren: (value: string | TextToken[]) => Iterable<TNode>;
+  flattenText: (value: string | TextToken[]) => string;
+  env: TEnv;
+}
+```
+
+| Field               | Description                                                         |
+|---------------------|---------------------------------------------------------------------|
+| `interpretChildren` | Recursively interpret child tokens — returns lazy `Iterable<TNode>` |
+| `flattenText`       | Extract plain text from a token value                               |
+| `env`               | User-provided environment, passed through from `interpretTokens`    |
 
 ---
 
-## onError
+## Error Handling
+
+### onError
 
 Optional error observer. Called with context before the error is thrown. It does **not** suppress the error — the error
 is always rethrown after `onError` returns.
@@ -419,38 +576,29 @@ try {
 
 ---
 
-## InterpretHelpers
-
-Passed to `interpret` and strategy functions:
-
-```ts
-interface InterpretHelpers<TNode, TEnv = unknown> {
-  interpretChildren: (value: string | TextToken[]) => Iterable<TNode>;
-  flattenText: (value: string | TextToken[]) => string;
-  env: TEnv;
-}
-```
-
-| Field               | Description                                                         |
-|---------------------|---------------------------------------------------------------------|
-| `interpretChildren` | Recursively interpret child tokens — returns lazy `Iterable<TNode>` |
-| `flattenText`       | Extract plain text from a token value                               |
-| `env`               | User-provided environment, passed through from `interpretTokens`    |
-
----
-
 ## Safety
 
 - **Self-recursion detection**: if a handler feeds a token back into `interpretChildren` referencing itself, an error is
   thrown immediately
 - **Circular value detection**: `flattenText` tracks visited tokens per recursion path (not globally), so shared
   references are safe but true cycles throw
-- **Error observation**: all errors (from `interpret`, `onUnhandled` strategy functions, `flattenText`, and traversal
-  checks) are routed through `onError` before being thrown
+- **Error observation**: errors that occur during the interpretation flow (`interpret`, `onUnhandled` strategy
+  functions, `flattenText`, and traversal checks) are routed through `onError` before being thrown
+
+> **Boundary note:** the exported `flattenText()` utility is a standalone function and does **not** go through
+`onError`. Only errors raised inside `interpretTokens` are observed by `onError`.
 
 ---
 
 ## Changelog
+
+### 0.1.1
+
+- Added helpers: `createRuleset`, `fromHandlerMap`, `debugUnhandled`, `collectNodes`
+- `debugUnhandled` is generic (`<TNode>`) — works with any node type, not just `string`
+- `fromHandlerMap` handler return type narrowed to `ResolvedResult` — handlers should not return `"unhandled"`
+- Split source into `types.ts`, `interpret.ts`, `helpers.ts` (barrel re-export from `index.ts`)
+- README: added table of contents, exports table, grouped sections by category
 
 ### 0.1.0
 
