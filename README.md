@@ -25,34 +25,34 @@ You provide rules. It walks the tree, yields output nodes, and gets out of the w
 - [Quick Start](#quick-start)
 - [Exports](#exports)
 - [Examples](#examples)
-  - [Use env to inject runtime context](#use-env-to-inject-runtime-context)
-  - [Customize onUnhandled](#customize-onunhandled)
-  - [Use flattenText inside a handler](#use-flattentext-inside-a-handler)
-  - [Return structured nodes](#return-structured-nodes-instead-of-strings)
-  - [Drop a token entirely](#drop-a-token-entirely)
+    - [Use env to inject runtime context](#use-env-to-inject-runtime-context)
+    - [Customize onUnhandled](#customize-onunhandled)
+    - [Use flattenText inside a handler](#use-flattentext-inside-a-handler)
+    - [Return structured nodes](#return-structured-nodes-instead-of-strings)
+    - [Drop a token entirely](#drop-a-token-entirely)
 - [Recommended Structure](#recommended-structure)
 - [Real-world Example](#real-world-example)
 - [API — Core](#api--core)
-  - [interpretTokens](#interprettokenstokens-ruleset-env)
-  - [flattenText](#flattentextvalue)
+    - [interpretTokens](#interprettokenstokens-ruleset-env)
+    - [flattenText](#flattentextvalue)
 - [API — Helpers](#api--helpers)
-  - [createRuleset](#createrulesetruleset)
-  - [fromHandlerMap](#fromhandlermaphandlers)
-  - [dropToken](#droptoken)
-  - [unwrapChildren](#unwrapchildren)
-  - [wrapHandlers](#wraphandlershandlers-wrap)
-  - [debugUnhandled](#debugunhandledformat)
-  - [collectNodes](#collectnodesiterable)
+    - [createRuleset](#createrulesetruleset)
+    - [fromHandlerMap](#fromhandlermaphandlers)
+    - [dropToken](#droptoken)
+    - [unwrapChildren](#unwrapchildren)
+    - [wrapHandlers](#wraphandlershandlers-wrap)
+    - [debugUnhandled](#debugunhandledformat)
+    - [collectNodes](#collectnodesiterable)
 - [Types](#types)
-  - [InterpretRuleset](#interpretruleset)
-  - [InterpretResult](#interpretresult)
-  - [ResolvedResult](#resolvedresult)
-  - [UnhandledStrategy](#unhandledstrategy)
-  - [InterpretHelpers](#interprethelpers)
+    - [InterpretRuleset](#interpretruleset)
+    - [InterpretResult](#interpretresult)
+    - [ResolvedResult](#resolvedresult)
+    - [UnhandledStrategy](#unhandledstrategy)
+    - [InterpretHelpers](#interprethelpers)
 - [Error Handling](#error-handling)
-  - [onError](#onerror)
-  - [Error phases](#error-phases)
-  - [Logging errors without stopping iteration](#logging-errors-without-stopping-iteration)
+    - [onError](#onerror)
+    - [Error phases](#error-phases)
+    - [Logging errors without stopping iteration](#logging-errors-without-stopping-iteration)
 - [Safety](#safety)
 - [Changelog](#changelog)
 - [License](#license)
@@ -65,10 +65,11 @@ You provide rules. It walks the tree, yields output nodes, and gets out of the w
 text ──▶ yume-dsl-rich-text (parse) ──▶ TextToken[] ──▶ yume-dsl-token-walker (interpret) ──▶ TNode[]
 ```
 
-| Package                                                     | Role                                                    |
-|-------------------------------------------------------------|---------------------------------------------------------|
-| [`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL) | Parser — text to token tree                             |
-| **`yume-dsl-token-walker`**                                 | Interpreter — token tree to output nodes (this package) |
+| Package                                                           | Role                                                    |
+|-------------------------------------------------------------------|---------------------------------------------------------|
+| [`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL)       | Parser — text to token tree                             |
+| **`yume-dsl-token-walker`**                                       | Interpreter — token tree to output nodes (this package) |
+| [`yume-dsl-shiki-highlight`](https://github.com/chiba233/yumeDSL) | Syntax highlighting — tokens or TextMate grammar        |
 
 ---
 
@@ -87,21 +88,21 @@ pnpm add yume-dsl-token-walker
 ## Quick Start
 
 ```ts
-import { parseRichText, createSimpleInlineHandlers } from "yume-dsl-rich-text";
-import { interpretTokens } from "yume-dsl-token-walker";
+import {parseRichText, createSimpleInlineHandlers} from "yume-dsl-rich-text";
+import {interpretTokens} from "yume-dsl-token-walker";
 
 const handlers = createSimpleInlineHandlers(["bold"]);
-const tokens = parseRichText("Hello $$bold(world)$$", { handlers });
+const tokens = parseRichText("Hello $$bold(world)$$", {handlers});
 
 const html = Array.from(
-  interpretTokens(tokens, {
-    createText: (text) => text,
-    interpret: (token, helpers) => {
-      if (token.type === "bold")
-        return { type: "nodes", nodes: ["<strong>", ...helpers.interpretChildren(token.value), "</strong>"] };
-      return { type: "unhandled" };
-    },
-  }, {}),
+    interpretTokens(tokens, {
+        createText: (text) => text,
+        interpret: (token, helpers) => {
+            if (token.type === "bold")
+                return {type: "nodes", nodes: ["<strong>", ...helpers.interpretChildren(token.value), "</strong>"]};
+            return {type: "unhandled"};
+        },
+    }, {}),
 ).join("");
 
 // → "Hello <strong>world</strong>"
@@ -139,37 +140,37 @@ All public exports at a glance:
 ### Use `env` to inject runtime context
 
 ```ts
-import { createSimpleInlineHandlers, createParser } from "yume-dsl-rich-text";
-import { interpretTokens } from "yume-dsl-token-walker";
+import {createSimpleInlineHandlers, createParser} from "yume-dsl-rich-text";
+import {interpretTokens} from "yume-dsl-token-walker";
 
 const dsl = createParser({
-  handlers: createSimpleInlineHandlers(["bold"]),
+    handlers: createSimpleInlineHandlers(["bold"]),
 });
 
 const tokens = dsl.parse("Hello $$bold(world)$$");
 
 const result = Array.from(
-        interpretTokens(
-                tokens,
-                {
-                  createText: (text) => text,
-                  interpret: (token, helpers) => {
-                    if (token.type === "bold") {
-                      return {
+    interpretTokens(
+        tokens,
+        {
+            createText: (text) => text,
+            interpret: (token, helpers) => {
+                if (token.type === "bold") {
+                    return {
                         type: "nodes",
                         nodes: [
-                          `<strong data-tone="${helpers.env.tone}">`,
-                          ...helpers.interpretChildren(token.value),
-                          "</strong>",
+                            `<strong data-tone="${helpers.env.tone}">`,
+                            ...helpers.interpretChildren(token.value),
+                            "</strong>",
                         ],
-                      };
-                    }
+                    };
+                }
 
-                    return { type: "unhandled" };
-                  },
-                },
-                { tone: "soft" },
-        ),
+                return {type: "unhandled"};
+            },
+        },
+        {tone: "soft"},
+    ),
 ).join("");
 
 // "Hello <strong data-tone=\"soft\">world</strong>"
@@ -183,14 +184,14 @@ By default, unhandled tokens fall back to `"flatten"`:
 
 ```ts
 const result = Array.from(
-        interpretTokens(
-                tokens,
-                {
-                  createText: (text) => text,
-                  interpret: () => ({ type: "unhandled" }),
-                },
-                undefined,
-        ),
+    interpretTokens(
+        tokens,
+        {
+            createText: (text) => text,
+            interpret: () => ({type: "unhandled"}),
+        },
+        undefined,
+    ),
 ).join("");
 ```
 
@@ -198,9 +199,9 @@ For stricter behavior:
 
 ```ts
 const strictRuleset = {
-  createText: (text: string) => text,
-  interpret: () => ({ type: "unhandled" as const }),
-  onUnhandled: "throw" as const,
+    createText: (text: string) => text,
+    interpret: () => ({type: "unhandled" as const}),
+    onUnhandled: "throw" as const,
 };
 ```
 
@@ -208,12 +209,12 @@ For custom fallback output:
 
 ```ts
 const debugRuleset = {
-  createText: (text: string) => text,
-  interpret: () => ({ type: "unhandled" as const }),
-  onUnhandled: (token: { type: string }) => ({
-    type: "text" as const,
-    text: `[unhandled:${token.type}]`,
-  }),
+    createText: (text: string) => text,
+    interpret: () => ({type: "unhandled" as const}),
+    onUnhandled: (token: { type: string }) => ({
+        type: "text" as const,
+        text: `[unhandled:${token.type}]`,
+    }),
 };
 ```
 
@@ -228,44 +229,44 @@ This is useful when:
 Sometimes you do not want to recursively interpret a subtree. You just want its readable text.
 
 ```ts
-import { createSimpleInlineHandlers, createSimpleBlockHandlers, createParser } from "yume-dsl-rich-text";
-import { interpretTokens } from "yume-dsl-token-walker";
+import {createSimpleInlineHandlers, createSimpleBlockHandlers, createParser} from "yume-dsl-rich-text";
+import {interpretTokens} from "yume-dsl-token-walker";
 
 const dsl = createParser({
-  handlers: {
-    ...createSimpleInlineHandlers(["bold"]),
-    ...createSimpleBlockHandlers(["info"]),
-  },
-  blockTags: ["info"],
+    handlers: {
+        ...createSimpleInlineHandlers(["bold"]),
+        ...createSimpleBlockHandlers(["info"]),
+    },
+    blockTags: ["info"],
 });
 
 const tokens = dsl.parse("$$info(Title | hello $$bold(world)$$)$$");
 
 const result = Array.from(
-        interpretTokens(
-                tokens,
-                {
-                  createText: (text) => text,
-                  interpret: (token, helpers) => {
-                    if (token.type === "info") {
-                      return {
+    interpretTokens(
+        tokens,
+        {
+            createText: (text) => text,
+            interpret: (token, helpers) => {
+                if (token.type === "info") {
+                    return {
                         type: "text",
                         text: `[INFO] ${helpers.flattenText(token.value)}`,
-                      };
-                    }
+                    };
+                }
 
-                    if (token.type === "bold") {
-                      return {
+                if (token.type === "bold") {
+                    return {
                         type: "nodes",
                         nodes: ["<strong>", ...helpers.interpretChildren(token.value), "</strong>"],
-                      };
-                    }
+                    };
+                }
 
-                    return { type: "unhandled" };
-                  },
-                },
-                undefined,
-        ),
+                return {type: "unhandled"};
+            },
+        },
+        undefined,
+    ),
 ).join("");
 
 // "[INFO] hello world"
@@ -279,33 +280,33 @@ Use `flattenText` when building search indexes, aria labels, previews, plain-tex
 
 ```ts
 type HtmlNode =
-        | { kind: "text"; value: string }
-        | { kind: "element"; tag: string; children: HtmlNode[] };
+    | { kind: "text"; value: string }
+    | { kind: "element"; tag: string; children: HtmlNode[] };
 
 const nodes = Array.from(
-        interpretTokens<HtmlNode, void>(
-                tokens,
-                {
-                  createText: (text) => ({ kind: "text", value: text }),
-                  interpret: (token, helpers) => {
-                    if (token.type === "bold") {
-                      return {
+    interpretTokens<HtmlNode, void>(
+        tokens,
+        {
+            createText: (text) => ({kind: "text", value: text}),
+            interpret: (token, helpers) => {
+                if (token.type === "bold") {
+                    return {
                         type: "nodes",
                         nodes: [
-                          {
-                            kind: "element",
-                            tag: "strong",
-                            children: Array.from(helpers.interpretChildren(token.value)),
-                          },
+                            {
+                                kind: "element",
+                                tag: "strong",
+                                children: Array.from(helpers.interpretChildren(token.value)),
+                            },
                         ],
-                      };
-                    }
+                    };
+                }
 
-                    return { type: "unhandled" };
-                  },
-                },
-                undefined,
-        ),
+                return {type: "unhandled"};
+            },
+        },
+        undefined,
+    ),
 );
 ```
 
@@ -315,21 +316,21 @@ This is the intended shape if you want to bridge the token tree into React, Vue,
 
 ```ts
 const result = Array.from(
-        interpretTokens(
-                tokens,
-                {
-                  createText: (text) => text,
-                  interpret: (token) => {
-                    if (token.type === "comment") {
-                      return { type: "drop" };
-                    }
+    interpretTokens(
+        tokens,
+        {
+            createText: (text) => text,
+            interpret: (token) => {
+                if (token.type === "comment") {
+                    return {type: "drop"};
+                }
 
-                    return { type: "unhandled" };
-                  },
-                  onUnhandled: "flatten",
-                },
-                undefined,
-        ),
+                return {type: "unhandled"};
+            },
+            onUnhandled: "flatten",
+        },
+        undefined,
+    ),
 ).join("");
 ```
 
@@ -345,14 +346,14 @@ Write everything in one file. No helpers needed.
 
 ```ts
 const result = collectNodes(
-        interpretTokens(tokens, {
-          createText: (t) => t,
-          interpret: (token, helpers) => {
+    interpretTokens(tokens, {
+        createText: (t) => t,
+        interpret: (token, helpers) => {
             if (token.type === "bold")
-              return { type: "nodes", nodes: ["<b>", ...helpers.interpretChildren(token.value), "</b>"] };
-            return { type: "unhandled" };
-          },
-        }, {}),
+                return {type: "nodes", nodes: ["<b>", ...helpers.interpretChildren(token.value), "</b>"]};
+            return {type: "unhandled"};
+        },
+    }, {}),
 );
 ```
 
@@ -370,33 +371,33 @@ src/
 
 ```ts
 // handlers.ts
-import type { InterpretHelpers, ResolvedResult } from "yume-dsl-token-walker";
+import type {InterpretHelpers, ResolvedResult} from "yume-dsl-token-walker";
 
 type Handler = (token: TextToken, helpers: InterpretHelpers<string, Env>) => ResolvedResult<string>;
 
 // shared wrapping logic — just a plain function, not a library export
 const wrapTag = (tag: string, token: TextToken, helpers: InterpretHelpers<string, Env>): ResolvedResult<string> => ({
-  type: "nodes",
-  nodes: [`<${tag}>`, ...helpers.interpretChildren(token.value), `</${tag}>`],
+    type: "nodes",
+    nodes: [`<${tag}>`, ...helpers.interpretChildren(token.value), `</${tag}>`],
 });
 
 export const handlers: Record<string, Handler> = {
-  bold: (token, h) => wrapTag("strong", token, h),
-  italic: (token, h) => wrapTag("em", token, h),
-  code: (token) => ({ type: "text", text: `<code>${token.value}</code>` }),
-  comment: () => ({ type: "drop" }),
+    bold: (token, h) => wrapTag("strong", token, h),
+    italic: (token, h) => wrapTag("em", token, h),
+    code: (token) => ({type: "text", text: `<code>${token.value}</code>`}),
+    comment: () => ({type: "drop"}),
 };
 ```
 
 ```ts
 // ruleset.ts
-import { createRuleset, fromHandlerMap, debugUnhandled } from "yume-dsl-token-walker";
-import { handlers } from "./handlers";
+import {createRuleset, fromHandlerMap, debugUnhandled} from "yume-dsl-token-walker";
+import {handlers} from "./handlers";
 
 export const ruleset = createRuleset({
-  createText: (text) => text,
-  interpret: fromHandlerMap(handlers),
-  onUnhandled: process.env.NODE_ENV === "production" ? "flatten" : debugUnhandled(),
+    createText: (text) => text,
+    interpret: fromHandlerMap(handlers),
+    onUnhandled: process.env.NODE_ENV === "production" ? "flatten" : debugUnhandled(),
 });
 ```
 
@@ -434,68 +435,68 @@ locale, and dual output (rich + plain text for search).
 ```ts
 // ── types.ts ──
 type HtmlNode =
-        | { kind: "text"; value: string }
-        | { kind: "element"; tag: string; attrs?: Record<string, string>; children: HtmlNode[] };
+    | { kind: "text"; value: string }
+    | { kind: "element"; tag: string; attrs?: Record<string, string>; children: HtmlNode[] };
 
 interface Env {
-  locale: "en" | "zh";
-  theme: "light" | "dark";
+    locale: "en" | "zh";
+    theme: "light" | "dark";
 }
 
 // ── parser.ts ──
-import { createParser, createSimpleInlineHandlers } from "yume-dsl-rich-text";
+import {createParser, createSimpleInlineHandlers} from "yume-dsl-rich-text";
 
 const parser = createParser({
-  handlers: createSimpleInlineHandlers(["bold", "italic", "link", "color"]),
+    handlers: createSimpleInlineHandlers(["bold", "italic", "link", "color"]),
 });
 
 // ── handlers.ts ──
-import type { TextToken } from "yume-dsl-rich-text";
-import type { InterpretHelpers, ResolvedResult } from "yume-dsl-token-walker";
+import type {TextToken} from "yume-dsl-rich-text";
+import type {InterpretHelpers, ResolvedResult} from "yume-dsl-token-walker";
 
 type H = InterpretHelpers<HtmlNode, Env>;
 
 const el = (tag: string, token: TextToken, h: H, attrs?: Record<string, string>): ResolvedResult<HtmlNode> => ({
-  type: "nodes",
-  nodes: [{ kind: "element", tag, attrs, children: Array.from(h.interpretChildren(token.value)) }],
+    type: "nodes",
+    nodes: [{kind: "element", tag, attrs, children: Array.from(h.interpretChildren(token.value))}],
 });
 
 const handlers: Record<string, (token: TextToken, h: H) => ResolvedResult<HtmlNode>> = {
-  bold: (token, h) => el("strong", token, h),
-  italic: (token, h) => el("em", token, h),
-  link: (token, h) => el("a", token, h, { href: token.props?.href ?? "#" }),
-  color: (token, h) => el("span", token, h, {
-    style: `color: ${h.env.theme === "dark" ? "var(--c-light)" : token.props?.value ?? "inherit"}`,
-  }),
+    bold: (token, h) => el("strong", token, h),
+    italic: (token, h) => el("em", token, h),
+    link: (token, h) => el("a", token, h, {href: token.props?.href ?? "#"}),
+    color: (token, h) => el("span", token, h, {
+        style: `color: ${h.env.theme === "dark" ? "var(--c-light)" : token.props?.value ?? "inherit"}`,
+    }),
 };
 
 // ── ruleset.ts ──
-import { createRuleset, fromHandlerMap } from "yume-dsl-token-walker";
+import {createRuleset, fromHandlerMap} from "yume-dsl-token-walker";
 
 const ruleset = createRuleset<HtmlNode, Env>({
-  createText: (text) => ({ kind: "text", value: text }),
-  interpret: fromHandlerMap(handlers),
-  onUnhandled: "flatten",
-  onError: ({ error, phase, token }) => {
-    console.warn(`[dsl:${phase}] ${error.message}`, token?.type);
-  },
+    createText: (text) => ({kind: "text", value: text}),
+    interpret: fromHandlerMap(handlers),
+    onUnhandled: "flatten",
+    onError: ({error, phase, token}) => {
+        console.warn(`[dsl:${phase}] ${error.message}`, token?.type);
+    },
 });
 
 // ── render.ts ──
 const renderNode = (node: HtmlNode): string => {
-  if (node.kind === "text") return node.value;
-  const attrs = node.attrs
-          ? " " + Object.entries(node.attrs).map(([k, v]) => `${k}="${v}"`).join(" ")
-          : "";
-  return `<${node.tag}${attrs}>${node.children.map(renderNode).join("")}</${node.tag}>`;
+    if (node.kind === "text") return node.value;
+    const attrs = node.attrs
+        ? " " + Object.entries(node.attrs).map(([k, v]) => `${k}="${v}"`).join(" ")
+        : "";
+    return `<${node.tag}${attrs}>${node.children.map(renderNode).join("")}</${node.tag}>`;
 };
 
 // ── usage ──
-import { interpretTokens, collectNodes, flattenText } from "yume-dsl-token-walker";
+import {interpretTokens, collectNodes, flattenText} from "yume-dsl-token-walker";
 
 const input = "Hello $$bold($$italic(world)$$)$$ — $$link(click here){href=https://example.com}$$";
 const tokens = parser.parse(input);
-const env: Env = { locale: "zh", theme: "dark" };
+const env: Env = {locale: "zh", theme: "dark"};
 
 // rich output
 const nodes = collectNodes(interpretTokens(tokens, ruleset, env));
@@ -524,9 +525,9 @@ Lazily walks a `TextToken[]` tree and yields `TNode` values via a generator.
 
 ```ts
 function* interpretTokens<TNode, TEnv>(
-  tokens: TextToken[],
-  ruleset: InterpretRuleset<TNode, TEnv>,
-  env: TEnv,
+    tokens: TextToken[],
+    ruleset: InterpretRuleset<TNode, TEnv>,
+    env: TEnv,
 ): Generator<TNode>;
 ```
 
@@ -556,11 +557,11 @@ Optional utilities that do not affect the core. Import only what you need.
 Identity function that enables full type inference for `InterpretRuleset`:
 
 ```ts
-import { createRuleset } from "yume-dsl-token-walker";
+import {createRuleset} from "yume-dsl-token-walker";
 
 const ruleset = createRuleset({
-  createText: (text) => text,
-  interpret: (token) => ({ type: "unhandled" }),
+    createText: (text) => text,
+    interpret: (token) => ({type: "unhandled"}),
 });
 ```
 
@@ -569,20 +570,20 @@ const ruleset = createRuleset({
 Table-driven `interpret` — maps token types to handler functions:
 
 ```ts
-import { createRuleset, fromHandlerMap } from "yume-dsl-token-walker";
+import {createRuleset, fromHandlerMap} from "yume-dsl-token-walker";
 
 const ruleset = createRuleset({
-  createText: (text) => text,
-  interpret: fromHandlerMap({
-    bold: (token, helpers) => ({
-      type: "nodes",
-      nodes: ["<strong>", ...helpers.interpretChildren(token.value), "</strong>"],
+    createText: (text) => text,
+    interpret: fromHandlerMap({
+        bold: (token, helpers) => ({
+            type: "nodes",
+            nodes: ["<strong>", ...helpers.interpretChildren(token.value), "</strong>"],
+        }),
+        italic: (token, helpers) => ({
+            type: "nodes",
+            nodes: ["<em>", ...helpers.interpretChildren(token.value), "</em>"],
+        }),
     }),
-    italic: (token, helpers) => ({
-      type: "nodes",
-      nodes: ["<em>", ...helpers.interpretChildren(token.value), "</em>"],
-    }),
-  }),
 });
 ```
 
@@ -594,12 +595,12 @@ A ready-made handler that drops a token entirely — emits nothing. Equivalent t
 the boilerplate:
 
 ```ts
-import { fromHandlerMap, dropToken } from "yume-dsl-token-walker";
+import {fromHandlerMap, dropToken} from "yume-dsl-token-walker";
 
 const interpret = fromHandlerMap({
-  bold: (token, h) => ({ type: "nodes", nodes: ["<b>", ...h.interpretChildren(token.value), "</b>"] }),
-  comment: dropToken,
-  metadata: dropToken,
+    bold: (token, h) => ({type: "nodes", nodes: ["<b>", ...h.interpretChildren(token.value), "</b>"]}),
+    comment: dropToken,
+    metadata: dropToken,
 });
 ```
 
@@ -609,12 +610,12 @@ A ready-made handler that interprets children and passes them through without wr
 structural but produce no visible container:
 
 ```ts
-import { fromHandlerMap, unwrapChildren } from "yume-dsl-token-walker";
+import {fromHandlerMap, unwrapChildren} from "yume-dsl-token-walker";
 
 const interpret = fromHandlerMap({
-  bold: (token, h) => ({ type: "nodes", nodes: ["<b>", ...h.interpretChildren(token.value), "</b>"] }),
-  wrapper: unwrapChildren, // just emit children, no wrapper tag
-  transparent: unwrapChildren,
+    bold: (token, h) => ({type: "nodes", nodes: ["<b>", ...h.interpretChildren(token.value), "</b>"]}),
+    wrapper: unwrapChildren, // just emit children, no wrapper tag
+    transparent: unwrapChildren,
 });
 ```
 
@@ -630,25 +631,25 @@ wrapHandlers(raw, wrap)  ──▶  handlers  ──▶  fromHandlerMap(handlers
 ```
 
 ```ts
-import { fromHandlerMap, wrapHandlers, type TokenHandler } from "yume-dsl-token-walker";
+import {fromHandlerMap, wrapHandlers, type TokenHandler} from "yume-dsl-token-walker";
 
 const rawBlockHandlers: Record<string, TokenHandler<string>> = {
-  info: (token, h) => ({ type: "nodes", nodes: ["[INFO] ", ...h.interpretChildren(token.value)] }),
-  warning: (token, h) => ({ type: "nodes", nodes: ["[WARN] ", ...h.interpretChildren(token.value)] }),
+    info: (token, h) => ({type: "nodes", nodes: ["[INFO] ", ...h.interpretChildren(token.value)]}),
+    warning: (token, h) => ({type: "nodes", nodes: ["[WARN] ", ...h.interpretChildren(token.value)]}),
 };
 
 // wrap all block handlers with a shared <div> container
 const blockHandlers = wrapHandlers(rawBlockHandlers, (result, token) => {
-  if (result.type !== "nodes") return result;
-  return {
-    type: "nodes",
-    nodes: [`<div class="block-${token.type}">`, ...result.nodes, "</div>"],
-  };
+    if (result.type !== "nodes") return result;
+    return {
+        type: "nodes",
+        nodes: [`<div class="block-${token.type}">`, ...result.nodes, "</div>"],
+    };
 });
 
 const interpret = fromHandlerMap({
-  ...inlineHandlers,
-  ...blockHandlers,
+    ...inlineHandlers,
+    ...blockHandlers,
 });
 ```
 
@@ -658,12 +659,12 @@ Returns an `onUnhandled` function that renders unhandled tokens as visible place
 and token visualization:
 
 ```ts
-import { debugUnhandled } from "yume-dsl-token-walker";
+import {debugUnhandled} from "yume-dsl-token-walker";
 
 const ruleset = createRuleset({
-  createText: (text) => text,
-  interpret: () => ({ type: "unhandled" }),
-  onUnhandled: debugUnhandled(), // → "[unhandled:bold]"
+    createText: (text) => text,
+    interpret: () => ({type: "unhandled"}),
+    onUnhandled: debugUnhandled(), // → "[unhandled:bold]"
 });
 ```
 
@@ -672,7 +673,7 @@ const ruleset = createRuleset({
 Sugar for `Array.from`. Collects a lazy `Iterable<TNode>` into an array:
 
 ```ts
-import { interpretTokens, collectNodes } from "yume-dsl-token-walker";
+import {interpretTokens, collectNodes} from "yume-dsl-token-walker";
 
 const nodes = collectNodes(interpretTokens(tokens, ruleset, env));
 ```
@@ -687,15 +688,15 @@ The ruleset you pass to `interpretTokens`:
 
 ```ts
 interface InterpretRuleset<TNode, TEnv = unknown> {
-  createText: (text: string) => TNode;
-  interpret: (token: TextToken, helpers: InterpretHelpers<TNode, TEnv>) => InterpretResult<TNode>;
-  onUnhandled?: UnhandledStrategy<TNode, TEnv>;
-  onError?: (context: {
-    error: Error;
-    phase: "interpret" | "flatten" | "traversal" | "internal";
-    token?: TextToken;
-    env: TEnv;
-  }) => void;
+    createText: (text: string) => TNode;
+    interpret: (token: TextToken, helpers: InterpretHelpers<TNode, TEnv>) => InterpretResult<TNode>;
+    onUnhandled?: UnhandledStrategy<TNode, TEnv>;
+    onError?: (context: {
+        error: Error;
+        phase: "interpret" | "flatten" | "traversal" | "internal";
+        token?: TextToken;
+        env: TEnv;
+    }) => void;
 }
 ```
 
@@ -712,11 +713,11 @@ The return type of `interpret`:
 
 ```ts
 type InterpretResult<TNode> =
-  | { type: "nodes"; nodes: Iterable<TNode> }
-  | { type: "text"; text: string }
-  | { type: "flatten" }
-  | { type: "unhandled" }
-  | { type: "drop" };
+    | { type: "nodes"; nodes: Iterable<TNode> }
+    | { type: "text"; text: string }
+    | { type: "flatten" }
+    | { type: "unhandled" }
+    | { type: "drop" };
 ```
 
 | Result        | Meaning                                                        |
@@ -741,10 +742,10 @@ Controls what happens when `interpret` returns `{ type: "unhandled" }`:
 
 ```ts
 type UnhandledStrategy<TNode, TEnv = unknown> =
-  | "throw"
-  | "flatten"
-  | "drop"
-  | ((token: TextToken, helpers: InterpretHelpers<TNode, TEnv>) => ResolvedResult<TNode>);
+    | "throw"
+    | "flatten"
+    | "drop"
+    | ((token: TextToken, helpers: InterpretHelpers<TNode, TEnv>) => ResolvedResult<TNode>);
 ```
 
 | Strategy    | Behavior                                                                      |
@@ -760,9 +761,9 @@ Passed to `interpret` and strategy functions:
 
 ```ts
 interface InterpretHelpers<TNode, TEnv = unknown> {
-  interpretChildren: (value: string | TextToken[]) => Iterable<TNode>;
-  flattenText: (value: string | TextToken[]) => string;
-  env: TEnv;
+    interpretChildren: (value: string | TextToken[]) => Iterable<TNode>;
+    flattenText: (value: string | TextToken[]) => string;
+    env: TEnv;
 }
 ```
 
@@ -783,12 +784,12 @@ is always rethrown after `onError` returns.
 
 ```ts
 const ruleset = {
-  createText: (text: string) => text,
-  interpret: () => ({ type: "unhandled" as const }),
-  onUnhandled: "throw" as const,
-  onError: ({ error, phase, token, env }) => {
-    console.error(`[${phase}] ${error.message}`, token?.type);
-  },
+    createText: (text: string) => text,
+    interpret: () => ({type: "unhandled" as const}),
+    onUnhandled: "throw" as const,
+    onError: ({error, phase, token, env}) => {
+        console.error(`[${phase}] ${error.message}`, token?.type);
+    },
 };
 ```
 
@@ -810,20 +811,20 @@ will still propagate:
 const errors: Error[] = [];
 
 const ruleset = {
-  createText: (text: string) => text,
-  interpret: (token: TextToken) => {
-    if (token.type === "bold") throw new Error("boom");
-    return { type: "unhandled" as const };
-  },
-  onError: ({ error }) => {
-    errors.push(error);
-  },
+    createText: (text: string) => text,
+    interpret: (token: TextToken) => {
+        if (token.type === "bold") throw new Error("boom");
+        return {type: "unhandled" as const};
+    },
+    onError: ({error}) => {
+        errors.push(error);
+    },
 };
 
 try {
-  Array.from(interpretTokens(tokens, ruleset, undefined));
+    Array.from(interpretTokens(tokens, ruleset, undefined));
 } catch {
-  // errors[] now contains the observed error
+    // errors[] now contains the observed error
 }
 ```
 

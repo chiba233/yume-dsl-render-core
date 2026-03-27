@@ -24,34 +24,34 @@
 - [快速上手](#快速上手)
 - [导出一览](#导出一览)
 - [示例](#示例)
-  - [用 env 注入运行时上下文](#用-env-注入运行时上下文)
-  - [自定义 onUnhandled](#自定义-onunhandled)
-  - [在 handler 内使用 flattenText](#在-handler-内使用-flattentext)
-  - [返回结构化节点](#返回结构化节点而不只是字符串)
-  - [完全丢弃某类 token](#完全丢弃某类-token)
+    - [用 env 注入运行时上下文](#用-env-注入运行时上下文)
+    - [自定义 onUnhandled](#自定义-onunhandled)
+    - [在 handler 内使用 flattenText](#在-handler-内使用-flattentext)
+    - [返回结构化节点](#返回结构化节点而不只是字符串)
+    - [完全丢弃某类 token](#完全丢弃某类-token)
 - [推荐结构](#推荐结构)
 - [完整示例](#完整示例)
 - [API — 核心](#api--核心)
-  - [interpretTokens](#interprettokenstokens-ruleset-env)
-  - [flattenText](#flattentextvalue)
+    - [interpretTokens](#interprettokenstokens-ruleset-env)
+    - [flattenText](#flattentextvalue)
 - [API — 辅助工具](#api--辅助工具)
-  - [createRuleset](#createrulesetruleset)
-  - [fromHandlerMap](#fromhandlermaphandlers)
-  - [dropToken](#droptoken)
-  - [unwrapChildren](#unwrapchildren)
-  - [wrapHandlers](#wraphandlershandlers-wrap)
-  - [debugUnhandled](#debugunhandledformat)
-  - [collectNodes](#collectnodesiterable)
+    - [createRuleset](#createrulesetruleset)
+    - [fromHandlerMap](#fromhandlermaphandlers)
+    - [dropToken](#droptoken)
+    - [unwrapChildren](#unwrapchildren)
+    - [wrapHandlers](#wraphandlershandlers-wrap)
+    - [debugUnhandled](#debugunhandledformat)
+    - [collectNodes](#collectnodesiterable)
 - [类型定义](#类型定义)
-  - [InterpretRuleset](#interpretruleset)
-  - [InterpretResult](#interpretresult)
-  - [ResolvedResult](#resolvedresult)
-  - [UnhandledStrategy](#unhandledstrategy)
-  - [InterpretHelpers](#interprethelpers)
+    - [InterpretRuleset](#interpretruleset)
+    - [InterpretResult](#interpretresult)
+    - [ResolvedResult](#resolvedresult)
+    - [UnhandledStrategy](#unhandledstrategy)
+    - [InterpretHelpers](#interprethelpers)
 - [错误处理](#错误处理)
-  - [onError](#onerror)
-  - [错误阶段](#错误阶段)
-  - [记录错误但不阻止传播](#记录错误但不阻止传播)
+    - [onError](#onerror)
+    - [错误阶段](#错误阶段)
+    - [记录错误但不阻止传播](#记录错误但不阻止传播)
 - [安全性](#安全性)
 - [更新日志](#更新日志)
 - [许可证](#许可证)
@@ -64,10 +64,11 @@
 text ──▶ yume-dsl-rich-text (parse) ──▶ TextToken[] ──▶ yume-dsl-token-walker (interpret) ──▶ TNode[]
 ```
 
-| 包                                                           | 角色                     |
-|-------------------------------------------------------------|------------------------|
-| [`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL) | 解析器 — 文本到 token 树      |
-| **`yume-dsl-token-walker`**                                 | 解释器 — token 树到输出节点（本包） |
+| 包                                                                 | 角色                            |
+|-------------------------------------------------------------------|-------------------------------|
+| [`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL)       | 解析器 — 文本到 token 树             |
+| **`yume-dsl-token-walker`**                                       | 解释器 — token 树到输出节点（本包）        |
+| [`yume-dsl-shiki-highlight`](https://github.com/chiba233/yumeDSL) | 语法高亮 — 彩色 token 或 TextMate 语法 |
 
 ---
 
@@ -86,21 +87,21 @@ pnpm add yume-dsl-token-walker
 ## 快速上手
 
 ```ts
-import { parseRichText, createSimpleInlineHandlers } from "yume-dsl-rich-text";
-import { interpretTokens } from "yume-dsl-token-walker";
+import {parseRichText, createSimpleInlineHandlers} from "yume-dsl-rich-text";
+import {interpretTokens} from "yume-dsl-token-walker";
 
 const handlers = createSimpleInlineHandlers(["bold"]);
-const tokens = parseRichText("Hello $$bold(world)$$", { handlers });
+const tokens = parseRichText("Hello $$bold(world)$$", {handlers});
 
 const html = Array.from(
-  interpretTokens(tokens, {
-    createText: (text) => text,
-    interpret: (token, helpers) => {
-      if (token.type === "bold")
-        return { type: "nodes", nodes: ["<strong>", ...helpers.interpretChildren(token.value), "</strong>"] };
-      return { type: "unhandled" };
-    },
-  }, {}),
+    interpretTokens(tokens, {
+        createText: (text) => text,
+        interpret: (token, helpers) => {
+            if (token.type === "bold")
+                return {type: "nodes", nodes: ["<strong>", ...helpers.interpretChildren(token.value), "</strong>"]};
+            return {type: "unhandled"};
+        },
+    }, {}),
 ).join("");
 
 // → "Hello <strong>world</strong>"
@@ -136,37 +137,37 @@ const html = Array.from(
 ### 用 `env` 注入运行时上下文
 
 ```ts
-import { createSimpleInlineHandlers, createParser } from "yume-dsl-rich-text";
-import { interpretTokens } from "yume-dsl-token-walker";
+import {createSimpleInlineHandlers, createParser} from "yume-dsl-rich-text";
+import {interpretTokens} from "yume-dsl-token-walker";
 
 const dsl = createParser({
-  handlers: createSimpleInlineHandlers(["bold"]),
+    handlers: createSimpleInlineHandlers(["bold"]),
 });
 
 const tokens = dsl.parse("Hello $$bold(world)$$");
 
 const result = Array.from(
-  interpretTokens(
-    tokens,
-    {
-      createText: (text) => text,
-      interpret: (token, helpers) => {
-        if (token.type === "bold") {
-          return {
-            type: "nodes",
-            nodes: [
-              `<strong data-tone="${helpers.env.tone}">`,
-              ...helpers.interpretChildren(token.value),
-              "</strong>",
-            ],
-          };
-        }
+    interpretTokens(
+        tokens,
+        {
+            createText: (text) => text,
+            interpret: (token, helpers) => {
+                if (token.type === "bold") {
+                    return {
+                        type: "nodes",
+                        nodes: [
+                            `<strong data-tone="${helpers.env.tone}">`,
+                            ...helpers.interpretChildren(token.value),
+                            "</strong>",
+                        ],
+                    };
+                }
 
-        return { type: "unhandled" };
-      },
-    },
-    { tone: "soft" },
-  ),
+                return {type: "unhandled"};
+            },
+        },
+        {tone: "soft"},
+    ),
 ).join("");
 
 // "Hello <strong data-tone=\"soft\">world</strong>"
@@ -180,14 +181,14 @@ const result = Array.from(
 
 ```ts
 const result = Array.from(
-  interpretTokens(
-    tokens,
-    {
-      createText: (text) => text,
-      interpret: () => ({ type: "unhandled" }),
-    },
-    undefined,
-  ),
+    interpretTokens(
+        tokens,
+        {
+            createText: (text) => text,
+            interpret: () => ({type: "unhandled"}),
+        },
+        undefined,
+    ),
 ).join("");
 ```
 
@@ -195,9 +196,9 @@ const result = Array.from(
 
 ```ts
 const strictRuleset = {
-  createText: (text: string) => text,
-  interpret: () => ({ type: "unhandled" as const }),
-  onUnhandled: "throw" as const,
+    createText: (text: string) => text,
+    interpret: () => ({type: "unhandled" as const}),
+    onUnhandled: "throw" as const,
 };
 ```
 
@@ -205,12 +206,12 @@ const strictRuleset = {
 
 ```ts
 const debugRuleset = {
-  createText: (text: string) => text,
-  interpret: () => ({ type: "unhandled" as const }),
-  onUnhandled: (token: { type: string }) => ({
-    type: "text" as const,
-    text: `[unhandled:${token.type}]`,
-  }),
+    createText: (text: string) => text,
+    interpret: () => ({type: "unhandled" as const}),
+    onUnhandled: (token: { type: string }) => ({
+        type: "text" as const,
+        text: `[unhandled:${token.type}]`,
+    }),
 };
 ```
 
@@ -225,44 +226,44 @@ const debugRuleset = {
 有些时候你不想递归解释整个子树，而是只想拿到它的可读文本。
 
 ```ts
-import { createSimpleInlineHandlers, createSimpleBlockHandlers, createParser } from "yume-dsl-rich-text";
-import { interpretTokens } from "yume-dsl-token-walker";
+import {createSimpleInlineHandlers, createSimpleBlockHandlers, createParser} from "yume-dsl-rich-text";
+import {interpretTokens} from "yume-dsl-token-walker";
 
 const dsl = createParser({
-  handlers: {
-    ...createSimpleInlineHandlers(["bold"]),
-    ...createSimpleBlockHandlers(["info"]),
-  },
-  blockTags: ["info"],
+    handlers: {
+        ...createSimpleInlineHandlers(["bold"]),
+        ...createSimpleBlockHandlers(["info"]),
+    },
+    blockTags: ["info"],
 });
 
 const tokens = dsl.parse("$$info(Title | hello $$bold(world)$$)$$");
 
 const result = Array.from(
-  interpretTokens(
-    tokens,
-    {
-      createText: (text) => text,
-      interpret: (token, helpers) => {
-        if (token.type === "info") {
-          return {
-            type: "text",
-            text: `[INFO] ${helpers.flattenText(token.value)}`,
-          };
-        }
+    interpretTokens(
+        tokens,
+        {
+            createText: (text) => text,
+            interpret: (token, helpers) => {
+                if (token.type === "info") {
+                    return {
+                        type: "text",
+                        text: `[INFO] ${helpers.flattenText(token.value)}`,
+                    };
+                }
 
-        if (token.type === "bold") {
-          return {
-            type: "nodes",
-            nodes: ["<strong>", ...helpers.interpretChildren(token.value), "</strong>"],
-          };
-        }
+                if (token.type === "bold") {
+                    return {
+                        type: "nodes",
+                        nodes: ["<strong>", ...helpers.interpretChildren(token.value), "</strong>"],
+                    };
+                }
 
-        return { type: "unhandled" };
-      },
-    },
-    undefined,
-  ),
+                return {type: "unhandled"};
+            },
+        },
+        undefined,
+    ),
 ).join("");
 
 // "[INFO] hello world"
@@ -276,33 +277,33 @@ const result = Array.from(
 
 ```ts
 type HtmlNode =
-  | { kind: "text"; value: string }
-  | { kind: "element"; tag: string; children: HtmlNode[] };
+    | { kind: "text"; value: string }
+    | { kind: "element"; tag: string; children: HtmlNode[] };
 
 const nodes = Array.from(
-  interpretTokens<HtmlNode, void>(
-    tokens,
-    {
-      createText: (text) => ({ kind: "text", value: text }),
-      interpret: (token, helpers) => {
-        if (token.type === "bold") {
-          return {
-            type: "nodes",
-            nodes: [
-              {
-                kind: "element",
-                tag: "strong",
-                children: Array.from(helpers.interpretChildren(token.value)),
-              },
-            ],
-          };
-        }
+    interpretTokens<HtmlNode, void>(
+        tokens,
+        {
+            createText: (text) => ({kind: "text", value: text}),
+            interpret: (token, helpers) => {
+                if (token.type === "bold") {
+                    return {
+                        type: "nodes",
+                        nodes: [
+                            {
+                                kind: "element",
+                                tag: "strong",
+                                children: Array.from(helpers.interpretChildren(token.value)),
+                            },
+                        ],
+                    };
+                }
 
-        return { type: "unhandled" };
-      },
-    },
-    undefined,
-  ),
+                return {type: "unhandled"};
+            },
+        },
+        undefined,
+    ),
 );
 ```
 
@@ -312,21 +313,21 @@ const nodes = Array.from(
 
 ```ts
 const result = Array.from(
-  interpretTokens(
-    tokens,
-    {
-      createText: (text) => text,
-      interpret: (token) => {
-        if (token.type === "comment") {
-          return { type: "drop" };
-        }
+    interpretTokens(
+        tokens,
+        {
+            createText: (text) => text,
+            interpret: (token) => {
+                if (token.type === "comment") {
+                    return {type: "drop"};
+                }
 
-        return { type: "unhandled" };
-      },
-      onUnhandled: "flatten",
-    },
-    undefined,
-  ),
+                return {type: "unhandled"};
+            },
+            onUnhandled: "flatten",
+        },
+        undefined,
+    ),
 ).join("");
 ```
 
@@ -342,14 +343,14 @@ const result = Array.from(
 
 ```ts
 const result = collectNodes(
-        interpretTokens(tokens, {
-          createText: (t) => t,
-          interpret: (token, helpers) => {
+    interpretTokens(tokens, {
+        createText: (t) => t,
+        interpret: (token, helpers) => {
             if (token.type === "bold")
-              return { type: "nodes", nodes: ["<b>", ...helpers.interpretChildren(token.value), "</b>"] };
-            return { type: "unhandled" };
-          },
-        }, {}),
+                return {type: "nodes", nodes: ["<b>", ...helpers.interpretChildren(token.value), "</b>"]};
+            return {type: "unhandled"};
+        },
+    }, {}),
 );
 ```
 
@@ -367,33 +368,33 @@ src/
 
 ```ts
 // handlers.ts
-import type { InterpretHelpers, ResolvedResult } from "yume-dsl-token-walker";
+import type {InterpretHelpers, ResolvedResult} from "yume-dsl-token-walker";
 
 type Handler = (token: TextToken, helpers: InterpretHelpers<string, Env>) => ResolvedResult<string>;
 
 // 共享包装逻辑 — 只是一个普通函数，不是库导出
 const wrapTag = (tag: string, token: TextToken, helpers: InterpretHelpers<string, Env>): ResolvedResult<string> => ({
-  type: "nodes",
-  nodes: [`<${tag}>`, ...helpers.interpretChildren(token.value), `</${tag}>`],
+    type: "nodes",
+    nodes: [`<${tag}>`, ...helpers.interpretChildren(token.value), `</${tag}>`],
 });
 
 export const handlers: Record<string, Handler> = {
-  bold: (token, h) => wrapTag("strong", token, h),
-  italic: (token, h) => wrapTag("em", token, h),
-  code: (token) => ({ type: "text", text: `<code>${token.value}</code>` }),
-  comment: () => ({ type: "drop" }),
+    bold: (token, h) => wrapTag("strong", token, h),
+    italic: (token, h) => wrapTag("em", token, h),
+    code: (token) => ({type: "text", text: `<code>${token.value}</code>`}),
+    comment: () => ({type: "drop"}),
 };
 ```
 
 ```ts
 // ruleset.ts
-import { createRuleset, fromHandlerMap, debugUnhandled } from "yume-dsl-token-walker";
-import { handlers } from "./handlers";
+import {createRuleset, fromHandlerMap, debugUnhandled} from "yume-dsl-token-walker";
+import {handlers} from "./handlers";
 
 export const ruleset = createRuleset({
-  createText: (text) => text,
-  interpret: fromHandlerMap(handlers),
-  onUnhandled: process.env.NODE_ENV === "production" ? "flatten" : debugUnhandled(),
+    createText: (text) => text,
+    interpret: fromHandlerMap(handlers),
+    onUnhandled: process.env.NODE_ENV === "production" ? "flatten" : debugUnhandled(),
 });
 ```
 
@@ -430,68 +431,68 @@ src/
 ```ts
 // ── types.ts ──
 type HtmlNode =
-        | { kind: "text"; value: string }
-        | { kind: "element"; tag: string; attrs?: Record<string, string>; children: HtmlNode[] };
+    | { kind: "text"; value: string }
+    | { kind: "element"; tag: string; attrs?: Record<string, string>; children: HtmlNode[] };
 
 interface Env {
-  locale: "en" | "zh";
-  theme: "light" | "dark";
+    locale: "en" | "zh";
+    theme: "light" | "dark";
 }
 
 // ── parser.ts ──
-import { createParser, createSimpleInlineHandlers } from "yume-dsl-rich-text";
+import {createParser, createSimpleInlineHandlers} from "yume-dsl-rich-text";
 
 const parser = createParser({
-  handlers: createSimpleInlineHandlers(["bold", "italic", "link", "color"]),
+    handlers: createSimpleInlineHandlers(["bold", "italic", "link", "color"]),
 });
 
 // ── handlers.ts ──
-import type { TextToken } from "yume-dsl-rich-text";
-import type { InterpretHelpers, ResolvedResult } from "yume-dsl-token-walker";
+import type {TextToken} from "yume-dsl-rich-text";
+import type {InterpretHelpers, ResolvedResult} from "yume-dsl-token-walker";
 
 type H = InterpretHelpers<HtmlNode, Env>;
 
 const el = (tag: string, token: TextToken, h: H, attrs?: Record<string, string>): ResolvedResult<HtmlNode> => ({
-  type: "nodes",
-  nodes: [{ kind: "element", tag, attrs, children: Array.from(h.interpretChildren(token.value)) }],
+    type: "nodes",
+    nodes: [{kind: "element", tag, attrs, children: Array.from(h.interpretChildren(token.value))}],
 });
 
 const handlers: Record<string, (token: TextToken, h: H) => ResolvedResult<HtmlNode>> = {
-  bold: (token, h) => el("strong", token, h),
-  italic: (token, h) => el("em", token, h),
-  link: (token, h) => el("a", token, h, { href: token.props?.href ?? "#" }),
-  color: (token, h) => el("span", token, h, {
-    style: `color: ${h.env.theme === "dark" ? "var(--c-light)" : token.props?.value ?? "inherit"}`,
-  }),
+    bold: (token, h) => el("strong", token, h),
+    italic: (token, h) => el("em", token, h),
+    link: (token, h) => el("a", token, h, {href: token.props?.href ?? "#"}),
+    color: (token, h) => el("span", token, h, {
+        style: `color: ${h.env.theme === "dark" ? "var(--c-light)" : token.props?.value ?? "inherit"}`,
+    }),
 };
 
 // ── ruleset.ts ──
-import { createRuleset, fromHandlerMap } from "yume-dsl-token-walker";
+import {createRuleset, fromHandlerMap} from "yume-dsl-token-walker";
 
 const ruleset = createRuleset<HtmlNode, Env>({
-  createText: (text) => ({ kind: "text", value: text }),
-  interpret: fromHandlerMap(handlers),
-  onUnhandled: "flatten",
-  onError: ({ error, phase, token }) => {
-    console.warn(`[dsl:${phase}] ${error.message}`, token?.type);
-  },
+    createText: (text) => ({kind: "text", value: text}),
+    interpret: fromHandlerMap(handlers),
+    onUnhandled: "flatten",
+    onError: ({error, phase, token}) => {
+        console.warn(`[dsl:${phase}] ${error.message}`, token?.type);
+    },
 });
 
 // ── render.ts ──
 const renderNode = (node: HtmlNode): string => {
-  if (node.kind === "text") return node.value;
-  const attrs = node.attrs
-          ? " " + Object.entries(node.attrs).map(([k, v]) => `${k}="${v}"`).join(" ")
-          : "";
-  return `<${node.tag}${attrs}>${node.children.map(renderNode).join("")}</${node.tag}>`;
+    if (node.kind === "text") return node.value;
+    const attrs = node.attrs
+        ? " " + Object.entries(node.attrs).map(([k, v]) => `${k}="${v}"`).join(" ")
+        : "";
+    return `<${node.tag}${attrs}>${node.children.map(renderNode).join("")}</${node.tag}>`;
 };
 
 // ── usage ──
-import { interpretTokens, collectNodes, flattenText } from "yume-dsl-token-walker";
+import {interpretTokens, collectNodes, flattenText} from "yume-dsl-token-walker";
 
 const input = "Hello $$bold($$italic(world)$$)$$ — $$link(click here){href=https://example.com}$$";
 const tokens = parser.parse(input);
-const env: Env = { locale: "zh", theme: "dark" };
+const env: Env = {locale: "zh", theme: "dark"};
 
 // 富文本输出
 const nodes = collectNodes(interpretTokens(tokens, ruleset, env));
@@ -520,9 +521,9 @@ const plain = flattenText(tokens);
 
 ```ts
 function* interpretTokens<TNode, TEnv>(
-  tokens: TextToken[],
-  ruleset: InterpretRuleset<TNode, TEnv>,
-  env: TEnv,
+    tokens: TextToken[],
+    ruleset: InterpretRuleset<TNode, TEnv>,
+    env: TEnv,
 ): Generator<TNode>;
 ```
 
@@ -552,11 +553,11 @@ const flattenText: (value: string | TextToken[]) => string;
 恒等函数，为 `InterpretRuleset` 提供完整的类型推断：
 
 ```ts
-import { createRuleset } from "yume-dsl-token-walker";
+import {createRuleset} from "yume-dsl-token-walker";
 
 const ruleset = createRuleset({
-  createText: (text) => text,
-  interpret: (token) => ({ type: "unhandled" }),
+    createText: (text) => text,
+    interpret: (token) => ({type: "unhandled"}),
 });
 ```
 
@@ -565,20 +566,20 @@ const ruleset = createRuleset({
 表驱动的 `interpret` — 将 token 类型映射到处理函数：
 
 ```ts
-import { createRuleset, fromHandlerMap } from "yume-dsl-token-walker";
+import {createRuleset, fromHandlerMap} from "yume-dsl-token-walker";
 
 const ruleset = createRuleset({
-  createText: (text) => text,
-  interpret: fromHandlerMap({
-    bold: (token, helpers) => ({
-      type: "nodes",
-      nodes: ["<strong>", ...helpers.interpretChildren(token.value), "</strong>"],
+    createText: (text) => text,
+    interpret: fromHandlerMap({
+        bold: (token, helpers) => ({
+            type: "nodes",
+            nodes: ["<strong>", ...helpers.interpretChildren(token.value), "</strong>"],
+        }),
+        italic: (token, helpers) => ({
+            type: "nodes",
+            nodes: ["<em>", ...helpers.interpretChildren(token.value), "</em>"],
+        }),
     }),
-    italic: (token, helpers) => ({
-      type: "nodes",
-      nodes: ["<em>", ...helpers.interpretChildren(token.value), "</em>"],
-    }),
-  }),
 });
 ```
 
@@ -589,12 +590,12 @@ const ruleset = createRuleset({
 现成的 handler，直接丢弃 token，不产生任何输出。等价于 `() => ({ type: "drop" })`，省去样板代码：
 
 ```ts
-import { fromHandlerMap, dropToken } from "yume-dsl-token-walker";
+import {fromHandlerMap, dropToken} from "yume-dsl-token-walker";
 
 const interpret = fromHandlerMap({
-  bold: (token, h) => ({ type: "nodes", nodes: ["<b>", ...h.interpretChildren(token.value), "</b>"] }),
-  comment: dropToken,
-  metadata: dropToken,
+    bold: (token, h) => ({type: "nodes", nodes: ["<b>", ...h.interpretChildren(token.value), "</b>"]}),
+    comment: dropToken,
+    metadata: dropToken,
 });
 ```
 
@@ -603,12 +604,12 @@ const interpret = fromHandlerMap({
 现成的 handler，解释子节点并直接透传，不加任何包装。适合结构性 token（本身不产生可见容器）：
 
 ```ts
-import { fromHandlerMap, unwrapChildren } from "yume-dsl-token-walker";
+import {fromHandlerMap, unwrapChildren} from "yume-dsl-token-walker";
 
 const interpret = fromHandlerMap({
-  bold: (token, h) => ({ type: "nodes", nodes: ["<b>", ...h.interpretChildren(token.value), "</b>"] }),
-  wrapper: unwrapChildren, // 只输出子节点，不加包装标签
-  transparent: unwrapChildren,
+    bold: (token, h) => ({type: "nodes", nodes: ["<b>", ...h.interpretChildren(token.value), "</b>"]}),
+    wrapper: unwrapChildren, // 只输出子节点，不加包装标签
+    transparent: unwrapChildren,
 });
 ```
 
@@ -624,25 +625,25 @@ wrapHandlers(raw, wrap)  ──▶  handlers  ──▶  fromHandlerMap(handlers
 ```
 
 ```ts
-import { fromHandlerMap, wrapHandlers, type TokenHandler } from "yume-dsl-token-walker";
+import {fromHandlerMap, wrapHandlers, type TokenHandler} from "yume-dsl-token-walker";
 
 const rawBlockHandlers: Record<string, TokenHandler<string>> = {
-  info: (token, h) => ({ type: "nodes", nodes: ["[INFO] ", ...h.interpretChildren(token.value)] }),
-  warning: (token, h) => ({ type: "nodes", nodes: ["[WARN] ", ...h.interpretChildren(token.value)] }),
+    info: (token, h) => ({type: "nodes", nodes: ["[INFO] ", ...h.interpretChildren(token.value)]}),
+    warning: (token, h) => ({type: "nodes", nodes: ["[WARN] ", ...h.interpretChildren(token.value)]}),
 };
 
 // 所有 block handler 统一包一层 <div>
 const blockHandlers = wrapHandlers(rawBlockHandlers, (result, token) => {
-  if (result.type !== "nodes") return result;
-  return {
-    type: "nodes",
-    nodes: [`<div class="block-${token.type}">`, ...result.nodes, "</div>"],
-  };
+    if (result.type !== "nodes") return result;
+    return {
+        type: "nodes",
+        nodes: [`<div class="block-${token.type}">`, ...result.nodes, "</div>"],
+    };
 });
 
 const interpret = fromHandlerMap({
-  ...inlineHandlers,
-  ...blockHandlers,
+    ...inlineHandlers,
+    ...blockHandlers,
 });
 ```
 
@@ -651,12 +652,12 @@ const interpret = fromHandlerMap({
 返回一个 `onUnhandled` 函数，将未处理的 token 渲染为可见占位符。适合调试、测试和 token 可视化：
 
 ```ts
-import { debugUnhandled } from "yume-dsl-token-walker";
+import {debugUnhandled} from "yume-dsl-token-walker";
 
 const ruleset = createRuleset({
-  createText: (text) => text,
-  interpret: () => ({ type: "unhandled" }),
-  onUnhandled: debugUnhandled(), // → "[unhandled:bold]"
+    createText: (text) => text,
+    interpret: () => ({type: "unhandled"}),
+    onUnhandled: debugUnhandled(), // → "[unhandled:bold]"
 });
 ```
 
@@ -665,7 +666,7 @@ const ruleset = createRuleset({
 `Array.from` 的语法糖。将惰性 `Iterable<TNode>` 收集为数组：
 
 ```ts
-import { interpretTokens, collectNodes } from "yume-dsl-token-walker";
+import {interpretTokens, collectNodes} from "yume-dsl-token-walker";
 
 const nodes = collectNodes(interpretTokens(tokens, ruleset, env));
 ```
@@ -680,15 +681,15 @@ const nodes = collectNodes(interpretTokens(tokens, ruleset, env));
 
 ```ts
 interface InterpretRuleset<TNode, TEnv = unknown> {
-  createText: (text: string) => TNode;
-  interpret: (token: TextToken, helpers: InterpretHelpers<TNode, TEnv>) => InterpretResult<TNode>;
-  onUnhandled?: UnhandledStrategy<TNode, TEnv>;
-  onError?: (context: {
-    error: Error;
-    phase: "interpret" | "flatten" | "traversal" | "internal";
-    token?: TextToken;
-    env: TEnv;
-  }) => void;
+    createText: (text: string) => TNode;
+    interpret: (token: TextToken, helpers: InterpretHelpers<TNode, TEnv>) => InterpretResult<TNode>;
+    onUnhandled?: UnhandledStrategy<TNode, TEnv>;
+    onError?: (context: {
+        error: Error;
+        phase: "interpret" | "flatten" | "traversal" | "internal";
+        token?: TextToken;
+        env: TEnv;
+    }) => void;
 }
 ```
 
@@ -705,11 +706,11 @@ interface InterpretRuleset<TNode, TEnv = unknown> {
 
 ```ts
 type InterpretResult<TNode> =
-  | { type: "nodes"; nodes: Iterable<TNode> }
-  | { type: "text"; text: string }
-  | { type: "flatten" }
-  | { type: "unhandled" }
-  | { type: "drop" };
+    | { type: "nodes"; nodes: Iterable<TNode> }
+    | { type: "text"; text: string }
+    | { type: "flatten" }
+    | { type: "unhandled" }
+    | { type: "drop" };
 ```
 
 | 结果            | 含义                                  |
@@ -734,10 +735,10 @@ type ResolvedResult<TNode> = Exclude<InterpretResult<TNode>, { type: "unhandled"
 
 ```ts
 type UnhandledStrategy<TNode, TEnv = unknown> =
-  | "throw"
-  | "flatten"
-  | "drop"
-  | ((token: TextToken, helpers: InterpretHelpers<TNode, TEnv>) => ResolvedResult<TNode>);
+    | "throw"
+    | "flatten"
+    | "drop"
+    | ((token: TextToken, helpers: InterpretHelpers<TNode, TEnv>) => ResolvedResult<TNode>);
 ```
 
 | 策略          | 行为                                                 |
@@ -753,9 +754,9 @@ type UnhandledStrategy<TNode, TEnv = unknown> =
 
 ```ts
 interface InterpretHelpers<TNode, TEnv = unknown> {
-  interpretChildren: (value: string | TextToken[]) => Iterable<TNode>;
-  flattenText: (value: string | TextToken[]) => string;
-  env: TEnv;
+    interpretChildren: (value: string | TextToken[]) => Iterable<TNode>;
+    flattenText: (value: string | TextToken[]) => string;
+    env: TEnv;
 }
 ```
 
@@ -775,12 +776,12 @@ interface InterpretHelpers<TNode, TEnv = unknown> {
 
 ```ts
 const ruleset = {
-  createText: (text: string) => text,
-  interpret: () => ({ type: "unhandled" as const }),
-  onUnhandled: "throw" as const,
-  onError: ({ error, phase, token, env }) => {
-    console.error(`[${phase}] ${error.message}`, token?.type);
-  },
+    createText: (text: string) => text,
+    interpret: () => ({type: "unhandled" as const}),
+    onUnhandled: "throw" as const,
+    onError: ({error, phase, token, env}) => {
+        console.error(`[${phase}] ${error.message}`, token?.type);
+    },
 };
 ```
 
@@ -801,20 +802,20 @@ const ruleset = {
 const errors: Error[] = [];
 
 const ruleset = {
-  createText: (text: string) => text,
-  interpret: (token: TextToken) => {
-    if (token.type === "bold") throw new Error("boom");
-    return { type: "unhandled" as const };
-  },
-  onError: ({ error }) => {
-    errors.push(error);
-  },
+    createText: (text: string) => text,
+    interpret: (token: TextToken) => {
+        if (token.type === "bold") throw new Error("boom");
+        return {type: "unhandled" as const};
+    },
+    onError: ({error}) => {
+        errors.push(error);
+    },
 };
 
 try {
-  Array.from(interpretTokens(tokens, ruleset, undefined));
+    Array.from(interpretTokens(tokens, ruleset, undefined));
 } catch {
-  // errors[] 现在包含了观察到的错误
+    // errors[] 现在包含了观察到的错误
 }
 ```
 
