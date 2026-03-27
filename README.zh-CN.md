@@ -64,11 +64,11 @@
 text ──▶ yume-dsl-rich-text (parse) ──▶ TextToken[] ──▶ yume-dsl-token-walker (interpret) ──▶ TNode[]
 ```
 
-| 包                                                                 | 角色                            |
-|-------------------------------------------------------------------|-------------------------------|
-| [`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL)       | 解析器 — 文本到 token 树             |
-| **`yume-dsl-token-walker`**                                       | 解释器 — token 树到输出节点（本包）        |
-| [`yume-dsl-shiki-highlight`](https://github.com/chiba233/yumeDSL) | 语法高亮 — 彩色 token 或 TextMate 语法 |
+| 包                                                                                  | 角色                            |
+|------------------------------------------------------------------------------------|-------------------------------|
+| [`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL)                        | 解析器 — 文本到 token 树             |
+| **`yume-dsl-token-walker`**                                                        | 解释器 — token 树到输出节点（本包）        |
+| [`yume-dsl-shiki-highlight`](https://github.com/chiba233/yume-dsl-shiki-highlight) | 语法高亮 — 彩色 token 或 TextMate 语法 |
 
 ---
 
@@ -834,6 +834,10 @@ try {
 ---
 
 ## 更新日志
+
+### 0.1.2
+
+- 更新文档，添加生态链库。
 
 ### 0.1.1
 

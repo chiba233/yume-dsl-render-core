@@ -65,11 +65,11 @@ You provide rules. It walks the tree, yields output nodes, and gets out of the w
 text ──▶ yume-dsl-rich-text (parse) ──▶ TextToken[] ──▶ yume-dsl-token-walker (interpret) ──▶ TNode[]
 ```
 
-| Package                                                           | Role                                                    |
-|-------------------------------------------------------------------|---------------------------------------------------------|
-| [`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL)       | Parser — text to token tree                             |
-| **`yume-dsl-token-walker`**                                       | Interpreter — token tree to output nodes (this package) |
-| [`yume-dsl-shiki-highlight`](https://github.com/chiba233/yumeDSL) | Syntax highlighting — tokens or TextMate grammar        |
+| Package                                                                            | Role                                                    |
+|------------------------------------------------------------------------------------|---------------------------------------------------------|
+| [`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL)                        | Parser — text to token tree                             |
+| **`yume-dsl-token-walker`**                                                        | Interpreter — token tree to output nodes (this package) |
+| [`yume-dsl-shiki-highlight`](https://github.com/chiba233/yume-dsl-shiki-highlight) | Syntax highlighting — tokens or TextMate grammar        |
 
 ---
 
@@ -845,6 +845,11 @@ try {
 ---
 
 ## Changelog
+
+### 0.1.2
+
+- Update markdown
+- add ecosystem package
 
 ### 0.1.1
 
