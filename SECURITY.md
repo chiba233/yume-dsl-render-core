@@ -12,7 +12,7 @@
 
 Instead, report them privately via one of the following:
 
-- **GitHub private vulnerability reporting**: Go to the [Security](https://github.com/chiba233/yumeDSL/security/advisories/new) tab and click "Report a vulnerability".
+- **GitHub private vulnerability reporting**: Go to the [Security](https://github.com/chiba233/yume-dsl-token-walker/security/advisories/new) tab and click "Report a vulnerability".
 - **Email**: Send details to the repository maintainer (see GitHub profile).
 
 ### What to include

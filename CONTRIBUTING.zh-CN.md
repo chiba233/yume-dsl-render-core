@@ -10,7 +10,7 @@
 |-------------------------------------------------------------------|---------------------------|
 | [`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL)       | 解析器核心 — 文本到 token 树       |
 | **`yume-dsl-token-walker`**                                       | 解释器核心 — token 树到输出节点（本仓库） |
-| [`yume-dsl-shiki-highlight`](https://github.com/chiba233/yumeDSL) | 高亮层 — 结构树到彩色 token        |
+| [`yume-dsl-shiki-highlight`](https://github.com/chiba233/yume-dsl-shiki-highlight) | 高亮层 — 结构树到彩色 token        |
 
 ## 环境要求
 
@@ -20,7 +20,7 @@
 ## 开始开发
 
 ```bash
-git clone https://github.com/chiba233/yumeDSL.git
+git clone https://github.com/chiba233/yume-dsl-token-walker.git
 cd yumeDSL
 pnpm install
 
@@ -79,7 +79,7 @@ fix(token-walker): 修复递归 walk 时的处理器顺序
 
 ## 报告 Bug
 
-请使用 [Bug 报告](https://github.com/chiba233/yumeDSL/issues/new?template=bug_report.yml) 模板，包含：
+请使用 [Bug 报告](https://github.com/chiba233/yume-dsl-token-walker/issues/new?template=bug_report.yml) 模板，包含：
 
 1. 受影响的包和版本
 2. 最小复现代码
@@ -87,7 +87,7 @@ fix(token-walker): 修复递归 walk 时的处理器顺序
 
 ## 功能建议
 
-请使用 [功能建议](https://github.com/chiba233/yumeDSL/issues/new?template=feature_request.yml) 模板。
+请使用 [功能建议](https://github.com/chiba233/yume-dsl-token-walker/issues/new?template=feature_request.yml) 模板。
 
 ## 许可
 
