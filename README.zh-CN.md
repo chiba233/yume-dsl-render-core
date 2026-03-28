@@ -19,6 +19,8 @@
 
 你提供规则，它遍历树、yield 输出节点，然后闪开。
 
+**核心 API 已稳定。** 后续更新以向后兼容为优先；如有破坏性变更，将在主版本号升级时附带明确的迁移说明。
+
 它刻意只消费 `TextToken[]`，不处理 structural parse node。
 如果你需要带语法感知的结构分析或高亮，请使用 `yume-dsl-rich-text` 的 `parseStructural`，或者
 [`yume-dsl-shiki-highlight`](https://github.com/chiba233/yume-dsl-shiki-highlight)。
@@ -874,6 +876,12 @@ try {
 ---
 
 ## 更新日志
+
+### 1.0.0
+
+- 稳定版发布 — API 已定型
+- 将 `yume-dsl-rich-text` 依赖升级至 `^1.0.1`
+- 将 `typescript` 开发依赖从 `^5.7.0` 升级至 `^6.0.2`
 
 ### 0.1.3
 

@@ -20,6 +20,9 @@ output — the walking is an implementation detail.
 
 You provide rules. It walks the tree, yields output nodes, and gets out of the way.
 
+**Core API is stable.** Future updates will prioritize backward compatibility; breaking changes, if any, will land in
+major versions with explicit migration notes.
+
 It intentionally consumes `TextToken[]`, not structural parse nodes.
 If you need syntax-aware analysis or highlighting, use `parseStructural` from `yume-dsl-rich-text` or
 [`yume-dsl-shiki-highlight`](https://github.com/chiba233/yume-dsl-shiki-highlight).
@@ -885,6 +888,12 @@ try {
 ---
 
 ## Changelog
+
+### 1.0.0
+
+- Stable release — API is finalized
+- Updated `yume-dsl-rich-text` dependency to `^1.0.1`
+- Updated `typescript` dev dependency from `^5.7.0` to `^6.0.2`
 
 ### 0.1.3
 
