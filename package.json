@@ -28,8 +28,8 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
-    "build": "tsup",
-    "test": "tsup && node --import tsx tests/run-render-core-tests.ts",
+    "build": "tsup --target esnext",
+    "test": "tsup --target esnext && node --import tsx tests/run-render-core-tests.ts",
     "lint": "tsc --noEmit"
   },
   "keywords": [
