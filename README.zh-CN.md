@@ -82,6 +82,10 @@
         - [AsyncInterpretHelpers](#asyncinterprethelpers)
         - [Awaitable](#awaitablet)
         - [AsyncTokenHandler](#asynctokenhandler)
+- [结构切片](#结构切片)
+    - [parseSlice](#parseslicefulltext-span-parser-tracker)
+    - [ParseOverrides](#parseoverrides)
+    - [ParserLike](#parserlike)
 - [错误处理](#错误处理)
     - [onError](#onerror)
     - [错误阶段](#错误阶段)
@@ -132,7 +136,7 @@ import {createEasySyntax, createParser, createSimpleInlineHandlers} from "yume-d
 import {interpretText} from "yume-dsl-token-walker";
 
 const syntax = createEasySyntax({
-    tag: "%%",
+    tagPrefix: "%%",
 });
 
 const parser = createParser({
@@ -166,7 +170,7 @@ const html = Array.from(
 
 | 导出                  | 类别 | 说明                                                          |
 |---------------------|----|-------------------------------------------------------------|
-| `interpretText`     | 函数 | 推荐的便利入口：先用 parser 解析 DSL 文本，再 yield 输出节点                     |
+| `interpretText`     | 函数 | 推荐的便利入口：先用 parser 解析 DSL 文本，再 yield 输出节点                    |
 | `interpretTokens`   | 函数 | 遍历 token 树并 yield 输出节点（核心）                                  |
 | `flattenText`       | 函数 | 从 token value 中提取纯文本（独立工具，不经过 `onError`）                    |
 | `createRuleset`     | 辅助 | `InterpretRuleset` 的恒等函数，提供类型推断                             |
@@ -183,23 +187,31 @@ const html = Array.from(
 | `UnhandledStrategy` | 类型 | `"throw" \| "flatten" \| "drop" \| function`                |
 | `TokenHandler`      | 类型 | 单个 handler 函数签名的简写                                          |
 | `TextResult`        | 类型 | `{ type: "text"; text: string }` — `debugUnhandled` 回调的返回类型 |
+| `ParserLike`        | 类型 | 解析器接口 — `parse(input, overrides?)` 返回 `TextToken[]`         |
+
+**结构切片**
+
+| 导出               | 类别 | 说明                                                                  |
+|------------------|----|---------------------------------------------------------------------|
+| `parseSlice`     | 函数 | 按 `SourceSpan` 从完整文本中切片解析，自动映射位置                                    |
+| `ParseOverrides` | 类型 | 传给 `ParserLike.parse` 的选项 — `trackPositions`、`baseOffset`、`tracker` |
 
 **异步**
 
-| 导出                        | 类别 | 说明                                                               |
-|---------------------------|----|------------------------------------------------------------------|
-| `interpretTextAsync`      | 函数 | 异步便利入口：先用 parser 解析 DSL 文本，再通过 `AsyncGenerator` yield 输出节点        |
-| `interpretTokensAsync`    | 函数 | 异步遍历 token 树 — 通过 `AsyncGenerator` yield 输出节点                     |
-| `fromAsyncHandlerMap`     | 辅助 | 从 `Record<type, handler>` 映射构建异步 `interpret` 函数                   |
-| `wrapAsyncHandlers`       | 辅助 | 对异步 handler 映射表中的每个 handler 施加统一的包装变换                            |
-| `collectNodesAsync`       | 辅助 | 将 `AsyncIterable<TNode>` 收集为数组                                   |
-| `AsyncInterpretRuleset`   | 类型 | 传给 `interpretTokensAsync` 的异步规则集接口                               |
-| `AsyncInterpretResult`    | 类型 | 异步 `interpret` 的返回类型 — `nodes` 可以是 `AsyncIterable`               |
-| `AsyncResolvedResult`     | 类型 | `AsyncInterpretResult` 去掉 `"unhandled"`                          |
-| `AsyncInterpretHelpers`   | 类型 | 异步辅助对象 — `interpretChildren` 返回 `AsyncIterable<TNode>`           |
-| `AsyncUnhandledStrategy`  | 类型 | `UnhandledStrategy` 的异步版本 — 回调可返回 `Awaitable`                    |
-| `AsyncTokenHandler`       | 类型 | 异步 handler 函数签名的简写                                              |
-| `Awaitable`               | 类型 | `T \| Promise<T>` — 用于异步 API 签名                                 |
+| 导出                       | 类别 | 说明                                                         |
+|--------------------------|----|------------------------------------------------------------|
+| `interpretTextAsync`     | 函数 | 异步便利入口：先用 parser 解析 DSL 文本，再通过 `AsyncGenerator` yield 输出节点 |
+| `interpretTokensAsync`   | 函数 | 异步遍历 token 树 — 通过 `AsyncGenerator` yield 输出节点              |
+| `fromAsyncHandlerMap`    | 辅助 | 从 `Record<type, handler>` 映射构建异步 `interpret` 函数            |
+| `wrapAsyncHandlers`      | 辅助 | 对异步 handler 映射表中的每个 handler 施加统一的包装变换                      |
+| `collectNodesAsync`      | 辅助 | 将 `AsyncIterable<TNode>` 收集为数组                             |
+| `AsyncInterpretRuleset`  | 类型 | 传给 `interpretTokensAsync` 的异步规则集接口                         |
+| `AsyncInterpretResult`   | 类型 | 异步 `interpret` 的返回类型 — `nodes` 可以是 `AsyncIterable`         |
+| `AsyncResolvedResult`    | 类型 | `AsyncInterpretResult` 去掉 `"unhandled"`                    |
+| `AsyncInterpretHelpers`  | 类型 | 异步辅助对象 — `interpretChildren` 返回 `AsyncIterable<TNode>`     |
+| `AsyncUnhandledStrategy` | 类型 | `UnhandledStrategy` 的异步版本 — 回调可返回 `Awaitable`              |
+| `AsyncTokenHandler`      | 类型 | 异步 handler 函数签名的简写                                         |
+| `Awaitable`              | 类型 | `T \| Promise<T>` — 用于异步 API 签名                            |
 
 ---
 
@@ -212,7 +224,7 @@ import {createEasySyntax, createSimpleInlineHandlers, createParser} from "yume-d
 import {interpretTokens} from "yume-dsl-token-walker";
 
 const syntax = createEasySyntax({
-    tag: "%%",
+    tagPrefix: "%%",
 });
 
 const dsl = createParser({
@@ -302,23 +314,14 @@ const debugRuleset = {
 有些时候你不想递归解释整个子树，而是只想拿到它的可读文本。
 
 ```ts
-import {createEasySyntax, createSimpleInlineHandlers, createSimpleBlockHandlers, createParser} from "yume-dsl-rich-text";
+import {createSimpleInlineHandlers, createParser} from "yume-dsl-rich-text";
 import {interpretTokens} from "yume-dsl-token-walker";
 
-const syntax = createEasySyntax({
-    tag: "%%",
-});
-
 const dsl = createParser({
-    syntax,
-    handlers: {
-        ...createSimpleInlineHandlers(["bold"]),
-        ...createSimpleBlockHandlers(["info"]),
-    },
-    blockTags: ["info"],
+    handlers: createSimpleInlineHandlers(["bold", "info"]),
 });
 
-const tokens = dsl.parse("%%info(Title | hello %%bold(world)%%)%%");
+const tokens = dsl.parse("$$info(hello $$bold(world)$$)$$");
 
 const result = Array.from(
     interpretTokens(
@@ -516,20 +519,20 @@ type HtmlNode =
     | { kind: "element"; tag: string; attrs?: Record<string, string>; children: HtmlNode[] };
 
 interface Env {
-    locale: "en" | "zh";
     theme: "light" | "dark";
 }
 
 // ── parser.ts ──
-import {createEasySyntax, createParser, createSimpleInlineHandlers} from "yume-dsl-rich-text";
-
-const syntax = createEasySyntax({
-    tag: "%%",
-});
+import {createParser, createSimpleInlineHandlers, createPipeHandlers} from "yume-dsl-rich-text";
 
 const parser = createParser({
-    syntax,
-    handlers: createSimpleInlineHandlers(["bold", "italic", "link", "color"]),
+    handlers: {
+        ...createSimpleInlineHandlers(["bold", "italic"]),
+        // link 使用 pipe：$$link(url | 显示文本)$$
+        ...createPipeHandlers({
+            link: {inline: (args) => ({type: "link", url: args.text(0, "#"), value: args.materializedTailTokens(1)})},
+        }),
+    },
 });
 
 // ── handlers.ts ──
@@ -546,10 +549,7 @@ const el = (tag: string, token: TextToken, h: H, attrs?: Record<string, string>)
 const handlers: Record<string, (token: TextToken, h: H) => ResolvedResult<HtmlNode>> = {
     bold: (token, h) => el("strong", token, h),
     italic: (token, h) => el("em", token, h),
-    link: (token, h) => el("a", token, h, {href: token.props?.href ?? "#"}),
-    color: (token, h) => el("span", token, h, {
-        style: `color: ${h.env.theme === "dark" ? "var(--c-light)" : token.props?.value ?? "inherit"}`,
-    }),
+    link: (token, h) => el("a", token, h, {href: (token.url as string) ?? "#"}),
 };
 
 // ── ruleset.ts ──
@@ -576,9 +576,9 @@ const renderNode = (node: HtmlNode): string => {
 // ── usage ──
 import {interpretTokens, collectNodes, flattenText} from "yume-dsl-token-walker";
 
-const input = "Hello %%bold(%%italic(world)%%)%% - %%link(click here){href=https://example.com}%%";
+const input = "Hello $$bold($$italic(world)$$)$$ - $$link(https://example.com | 点击这里)$$";
 const tokens = parser.parse(input);
-const env: Env = {locale: "zh", theme: "dark"};
+const env: Env = {theme: "dark"};
 
 // 富文本输出
 const nodes = collectNodes(interpretTokens(tokens, ruleset, env));
@@ -622,7 +622,7 @@ function* interpretText<TNode, TEnv>(
 适合派生包或应用层减少一行样板代码，但不会改变包边界。
 它内部仍然只消费 `TextToken[]`，不会使用 `parser.structural(...)`。
 
-`ParserLike` 指任何带有 `parse(input: string): TextToken[]` 的对象。
+`ParserLike` 指任何带有 `parse(input: string, overrides?: ParseOverrides): TextToken[]` 的对象。
 
 #### `interpretTokens(tokens, ruleset, env)`
 
@@ -989,10 +989,12 @@ const interpret = fromAsyncHandlerMap({
 import {fromAsyncHandlerMap, wrapAsyncHandlers, type AsyncTokenHandler} from "yume-dsl-token-walker";
 
 const raw: Record<string, AsyncTokenHandler<string>> = {
-    info: async (token, h) => ({type: "nodes", nodes: (async function* () {
-        yield "[INFO] ";
-        yield* h.interpretChildren(token.value);
-    })()}),
+    info: async (token, h) => ({
+        type: "nodes", nodes: (async function* () {
+            yield "[INFO] ";
+            yield* h.interpretChildren(token.value);
+        })()
+    }),
 };
 
 const wrapped = wrapAsyncHandlers(raw, async (result, token) => {
@@ -1035,12 +1037,12 @@ interface AsyncInterpretRuleset<TNode, TEnv = unknown> {
 }
 ```
 
-| 字段            | 说明                                                                        |
-|---------------|---------------------------------------------------------------------------|
-| `createText`  | 将纯字符串包装为你的节点类型 — **同步**                                                  |
-| `interpret`   | 将 DSL token 映射为解释结果 — 可返回 `Promise`                                       |
-| `onUnhandled` | 当 `interpret` 返回 `"unhandled"` 时的处理策略（默认：`"flatten"`）— 可返回 `Promise`       |
-| `onError`     | 可选的错误观察回调，在抛出错误前调用                                                        |
+| 字段            | 说明                                                                   |
+|---------------|----------------------------------------------------------------------|
+| `createText`  | 将纯字符串包装为你的节点类型 — **同步**                                              |
+| `interpret`   | 将 DSL token 映射为解释结果 — 可返回 `Promise`                                  |
+| `onUnhandled` | 当 `interpret` 返回 `"unhandled"` 时的处理策略（默认：`"flatten"`）— 可返回 `Promise` |
+| `onError`     | 可选的错误观察回调，在抛出错误前调用                                                   |
 
 #### AsyncInterpretResult
 
@@ -1075,9 +1077,9 @@ type AsyncUnhandledStrategy<TNode, TEnv = unknown> =
     | "flatten"
     | "drop"
     | ((
-          token: TextToken,
-          helpers: AsyncInterpretHelpers<TNode, TEnv>,
-      ) => Awaitable<AsyncResolvedResult<TNode>>);
+    token: TextToken,
+    helpers: AsyncInterpretHelpers<TNode, TEnv>,
+) => Awaitable<AsyncResolvedResult<TNode>>);
 ```
 
 #### AsyncInterpretHelpers
@@ -1092,11 +1094,11 @@ interface AsyncInterpretHelpers<TNode, TEnv = unknown> {
 }
 ```
 
-| 字段                  | 说明                                            |
-|---------------------|-----------------------------------------------|
-| `interpretChildren` | 递归解释子 token — 返回 `AsyncIterable<TNode>`        |
-| `flattenText`       | 从 token value 中提取纯文本 — 与同步 API 使用同一个同步函数      |
-| `env`               | 用户提供的环境对象，从 `interpretTokensAsync` 透传          |
+| 字段                  | 说明                                       |
+|---------------------|------------------------------------------|
+| `interpretChildren` | 递归解释子 token — 返回 `AsyncIterable<TNode>`  |
+| `flattenText`       | 从 token value 中提取纯文本 — 与同步 API 使用同一个同步函数 |
+| `env`               | 用户提供的环境对象，从 `interpretTokensAsync` 透传    |
 
 #### `Awaitable<T>`
 
@@ -1116,6 +1118,106 @@ type AsyncTokenHandler<TNode, TEnv = unknown> = (
     helpers: AsyncInterpretHelpers<TNode, TEnv>,
 ) => Awaitable<AsyncResolvedResult<TNode>>;
 ```
+
+---
+
+## 结构切片
+
+用 `yume-dsl-rich-text` 的 `parseStructural` 预扫描文档（快，比 `parseRichText` 便宜约 50 倍），
+然后用 `parseSlice` 按需只解析你关心的区域，位置自动映射回原始文档。
+
+> **一句话** — `parseStructural` 给你地图；`parseSlice` 让你跳到地图上任意一点，
+> 拿到带正确位置的 `TextToken[]`，不用重新解析整个文档。
+
+### 完整管线示例
+
+```ts
+import {createParser, createSimpleInlineHandlers, buildPositionTracker} from "yume-dsl-rich-text";
+import {parseSlice, interpretTokens, collectNodes} from "yume-dsl-token-walker";
+
+const parser = createParser({
+    handlers: createSimpleInlineHandlers(["bold", "italic"]),
+});
+
+const fullText = "intro\n$$bold(hello $$italic(world)$$)$$\noutro";
+
+// 1. 预扫描：快速结构扫描 + 位置
+const structural = parser.structural(fullText, {trackPositions: true});
+
+// 2. 构建一次 tracker，所有切片复用
+const tracker = buildPositionTracker(fullText);
+
+// 3. 选一个节点，只解析那个区域
+const boldNode = structural.find(n => n.type === "inline" && n.tag === "bold");
+if (boldNode?.position) {
+    const tokens = parseSlice(fullText, boldNode.position, parser, tracker);
+    // tokens 的 offset/line/column 全部指向 fullText
+
+    // 4. 照常 interpret
+    const html = collectNodes(
+        interpretTokens(tokens, {
+            createText: (t) => t,
+            interpret: (token, helpers) => {
+                if (token.type === "bold")
+                    return {type: "nodes", nodes: ["<b>", ...helpers.interpretChildren(token.value), "</b>"]};
+                if (token.type === "italic")
+                    return {type: "nodes", nodes: ["<em>", ...helpers.interpretChildren(token.value), "</em>"]};
+                return {type: "unhandled"};
+            },
+        }, undefined),
+    ).join("");
+}
+```
+
+不传 `tracker` 时 `parseSlice` 仍然可用——`offset` 正确，但 `line`/`column` 基于切片本地计算。
+传了 `tracker` 后三个字段全部指回原始文档。
+用 `buildPositionTracker(fullText)` **构建一次**——不要对每个 slice 重建。
+
+### `parseSlice(fullText, span, parser, tracker?)`
+
+按 `SourceSpan` 从完整文本中切片，然后带位置映射解析。
+
+```ts
+const parseSlice: (
+    fullText: string,
+    span: SourceSpan,
+    parser: ParserLike,
+    tracker?: PositionTracker,
+) => TextToken[];
+```
+
+| 参数         | 说明                                                           |
+|------------|--------------------------------------------------------------|
+| `fullText` | 完整的源文本                                                       |
+| `span`     | 要解析的区域 — 通常来自 `StructuralNode.position`                      |
+| `parser`   | 带 `parse(input, overrides?)` 的解析器                            |
+| `tracker`  | 可选，来自 `buildPositionTracker(fullText)`，用于正确的 `line`/`column` |
+
+位置追踪始终开启。`baseOffset` 从 `span.start.offset` 自动派生。
+
+### ParseOverrides
+
+`ParserLike.parse` 第二参数接受的选项：
+
+```ts
+interface ParseOverrides {
+    trackPositions?: boolean;
+    baseOffset?: number;
+    tracker?: PositionTracker;
+}
+```
+
+### ParserLike
+
+`interpretText`、`interpretTextAsync` 和 `parseSlice` 使用的解析器接口：
+
+```ts
+interface ParserLike {
+    parse: (input: string, overrides?: ParseOverrides) => TextToken[];
+}
+```
+
+`yume-dsl-rich-text` 的 `createParser(...)` 满足此接口。
 
 ---
 

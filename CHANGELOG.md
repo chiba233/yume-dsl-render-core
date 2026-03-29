@@ -11,6 +11,14 @@
 - `AsyncInterpretRuleset.createText` is intentionally synchronous (`(text: string) => TNode`);
   only `interpret` and `onUnhandled` strategy functions accept `Awaitable` returns
 - Error handling, recursion detection, and `onError` behavior are identical to the synchronous API
+- New helper: `parseSlice(fullText, span, parser, tracker?)` — slice a region from full text by
+  `SourceSpan` (e.g. from `parseStructural`), parse with automatic `baseOffset` and optional
+  `tracker` for correct position mapping back to the original document
+- New type: `ParseOverrides` — options accepted by `ParserLike.parse` as the second argument
+  (`trackPositions`, `baseOffset`, `tracker`)
+- `ParserLike.parse` now accepts an optional second argument `overrides?: ParseOverrides`
+  (backward compatible — existing code passing no overrides is unaffected)
+- Updated `yume-dsl-rich-text` dependency to `^1.0.7` (requires `>=1.0.6` for `baseOffset`/`tracker` support)
 - No breaking changes to existing synchronous exports
 
 ### 1.0.1

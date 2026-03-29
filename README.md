@@ -85,6 +85,10 @@ If you need custom delimiters or a custom escape marker upstream, prefer `create
         - [AsyncInterpretHelpers](#asyncinterprethelpers)
         - [Awaitable](#awaitablet)
         - [AsyncTokenHandler](#asynctokenhandler)
+- [Structural Slice](#structural-slice)
+    - [parseSlice](#parseslicefulltext-span-parser-tracker)
+    - [ParseOverrides](#parseoverrides)
+    - [ParserLike](#parserlike)
 - [Error Handling](#error-handling)
     - [onError](#onerror)
     - [Error phases](#error-phases)
@@ -112,7 +116,8 @@ Boundary notes:
 - Recommended upstream path: `createParser(...).parse(...)`.
 - If you customize delimiters upstream, prefer `createEasySyntax(...)` + `createParser({ syntax, ... })`.
 - `yume-dsl-token-walker` also accepts legacy `parseRichText(...)` output because the boundary is still `TextToken[]`.
-- `parseStructural(...)` and `createParser(...).structural(...)` belong to syntax analysis / highlighting, not walker input.
+- `parseStructural(...)` and `createParser(...).structural(...)` belong to syntax analysis / highlighting, not walker
+  input.
 
 ---
 
@@ -135,7 +140,7 @@ import {createEasySyntax, createParser, createSimpleInlineHandlers} from "yume-d
 import {interpretText} from "yume-dsl-token-walker";
 
 const syntax = createEasySyntax({
-    tag: "%%",
+    tagPrefix: "%%",
 });
 
 const parser = createParser({
@@ -169,42 +174,50 @@ All public exports at a glance:
 
 **Synchronous**
 
-| Export              | Kind     | Description                                                                       |
-|---------------------|----------|-----------------------------------------------------------------------------------|
+| Export              | Kind     | Description                                                                        |
+|---------------------|----------|------------------------------------------------------------------------------------|
 | `interpretText`     | function | Recommended convenience API: parse DSL text with a parser, then yield output nodes |
-| `interpretTokens`   | function | Walk a token tree and yield output nodes (core)                                   |
-| `flattenText`       | function | Extract plain text from a token value (standalone, does not go through `onError`) |
-| `createRuleset`     | helper   | Identity function for `InterpretRuleset` type inference                           |
-| `fromHandlerMap`    | helper   | Build an `interpret` function from a `Record<type, handler>` map                  |
-| `dropToken`         | helper   | Handler that drops a token entirely — emits nothing                               |
-| `unwrapChildren`    | helper   | Handler that passes through interpreted children without wrapping                 |
-| `wrapHandlers`      | helper   | Wrap every handler in a record with a shared transformation                       |
-| `debugUnhandled`    | helper   | Create an `onUnhandled` function that renders visible placeholders                |
-| `collectNodes`      | helper   | `Array.from` sugar — collect lazy `Iterable<TNode>` into an array                 |
-| `InterpretRuleset`  | type     | Ruleset interface passed to `interpretTokens`                                     |
-| `InterpretResult`   | type     | Return type of `interpret` (5 variants)                                           |
-| `ResolvedResult`    | type     | `InterpretResult` minus `"unhandled"`                                             |
-| `InterpretHelpers`  | type     | Helpers object passed to `interpret` and strategy functions                       |
-| `UnhandledStrategy` | type     | `"throw" \| "flatten" \| "drop" \| function`                                      |
-| `TokenHandler`      | type     | Shorthand for a single handler function signature                                 |
-| `TextResult`        | type     | `{ type: "text"; text: string }` — return type of `debugUnhandled`'s callback     |
+| `interpretTokens`   | function | Walk a token tree and yield output nodes (core)                                    |
+| `flattenText`       | function | Extract plain text from a token value (standalone, does not go through `onError`)  |
+| `createRuleset`     | helper   | Identity function for `InterpretRuleset` type inference                            |
+| `fromHandlerMap`    | helper   | Build an `interpret` function from a `Record<type, handler>` map                   |
+| `dropToken`         | helper   | Handler that drops a token entirely — emits nothing                                |
+| `unwrapChildren`    | helper   | Handler that passes through interpreted children without wrapping                  |
+| `wrapHandlers`      | helper   | Wrap every handler in a record with a shared transformation                        |
+| `debugUnhandled`    | helper   | Create an `onUnhandled` function that renders visible placeholders                 |
+| `collectNodes`      | helper   | `Array.from` sugar — collect lazy `Iterable<TNode>` into an array                  |
+| `InterpretRuleset`  | type     | Ruleset interface passed to `interpretTokens`                                      |
+| `InterpretResult`   | type     | Return type of `interpret` (5 variants)                                            |
+| `ResolvedResult`    | type     | `InterpretResult` minus `"unhandled"`                                              |
+| `InterpretHelpers`  | type     | Helpers object passed to `interpret` and strategy functions                        |
+| `UnhandledStrategy` | type     | `"throw" \| "flatten" \| "drop" \| function`                                       |
+| `TokenHandler`      | type     | Shorthand for a single handler function signature                                  |
+| `TextResult`        | type     | `{ type: "text"; text: string }` — return type of `debugUnhandled`'s callback      |
+| `ParserLike`        | type     | Parser interface — `parse(input, overrides?)` returning `TextToken[]`              |
+
+**Structural slice**
+
+| Export           | Kind     | Description                                                                      |
+|------------------|----------|----------------------------------------------------------------------------------|
+| `parseSlice`     | function | Slice a region from full text by `SourceSpan`, parse with position mapping       |
+| `ParseOverrides` | type     | Options passed to `ParserLike.parse` — `trackPositions`, `baseOffset`, `tracker` |
 
 **Asynchronous**
 
-| Export                    | Kind     | Description                                                                         |
-|---------------------------|----------|-------------------------------------------------------------------------------------|
-| `interpretTextAsync`      | function | Async convenience API: parse DSL text with a parser, then yield output nodes         |
-| `interpretTokensAsync`    | function | Async walk of a token tree — yields output nodes via `AsyncGenerator`                |
-| `fromAsyncHandlerMap`     | helper   | Build an async `interpret` function from a `Record<type, handler>` map               |
-| `wrapAsyncHandlers`       | helper   | Wrap every async handler in a record with a shared transformation                    |
-| `collectNodesAsync`       | helper   | Collect an `AsyncIterable<TNode>` into an array                                     |
-| `AsyncInterpretRuleset`   | type     | Async ruleset interface passed to `interpretTokensAsync`                             |
-| `AsyncInterpretResult`    | type     | Return type of async `interpret` — nodes may be `AsyncIterable`                      |
-| `AsyncResolvedResult`     | type     | `AsyncInterpretResult` minus `"unhandled"`                                           |
-| `AsyncInterpretHelpers`   | type     | Async helpers — `interpretChildren` returns `AsyncIterable<TNode>`                   |
-| `AsyncUnhandledStrategy`  | type     | Async version of `UnhandledStrategy` — callback may return `Awaitable`               |
-| `AsyncTokenHandler`       | type     | Shorthand for an async handler function signature                                    |
-| `Awaitable`               | type     | `T \| Promise<T>` — used in async API signatures                                    |
+| Export                   | Kind     | Description                                                                  |
+|--------------------------|----------|------------------------------------------------------------------------------|
+| `interpretTextAsync`     | function | Async convenience API: parse DSL text with a parser, then yield output nodes |
+| `interpretTokensAsync`   | function | Async walk of a token tree — yields output nodes via `AsyncGenerator`        |
+| `fromAsyncHandlerMap`    | helper   | Build an async `interpret` function from a `Record<type, handler>` map       |
+| `wrapAsyncHandlers`      | helper   | Wrap every async handler in a record with a shared transformation            |
+| `collectNodesAsync`      | helper   | Collect an `AsyncIterable<TNode>` into an array                              |
+| `AsyncInterpretRuleset`  | type     | Async ruleset interface passed to `interpretTokensAsync`                     |
+| `AsyncInterpretResult`   | type     | Return type of async `interpret` — nodes may be `AsyncIterable`              |
+| `AsyncResolvedResult`    | type     | `AsyncInterpretResult` minus `"unhandled"`                                   |
+| `AsyncInterpretHelpers`  | type     | Async helpers — `interpretChildren` returns `AsyncIterable<TNode>`           |
+| `AsyncUnhandledStrategy` | type     | Async version of `UnhandledStrategy` — callback may return `Awaitable`       |
+| `AsyncTokenHandler`      | type     | Shorthand for an async handler function signature                            |
+| `Awaitable`              | type     | `T \| Promise<T>` — used in async API signatures                             |
 
 ---
 
@@ -217,7 +230,7 @@ import {createEasySyntax, createSimpleInlineHandlers, createParser} from "yume-d
 import {interpretTokens} from "yume-dsl-token-walker";
 
 const syntax = createEasySyntax({
-    tag: "%%",
+    tagPrefix: "%%",
 });
 
 const dsl = createParser({
@@ -307,23 +320,14 @@ This is useful when:
 Sometimes you do not want to recursively interpret a subtree. You just want its readable text.
 
 ```ts
-import {createEasySyntax, createSimpleInlineHandlers, createSimpleBlockHandlers, createParser} from "yume-dsl-rich-text";
+import {createSimpleInlineHandlers, createParser} from "yume-dsl-rich-text";
 import {interpretTokens} from "yume-dsl-token-walker";
 
-const syntax = createEasySyntax({
-    tag: "%%",
-});
-
 const dsl = createParser({
-    syntax,
-    handlers: {
-        ...createSimpleInlineHandlers(["bold"]),
-        ...createSimpleBlockHandlers(["info"]),
-    },
-    blockTags: ["info"],
+    handlers: createSimpleInlineHandlers(["bold", "info"]),
 });
 
-const tokens = dsl.parse("%%info(Title | hello %%bold(world)%%)%%");
+const tokens = dsl.parse("$$info(hello $$bold(world)$$)$$");
 
 const result = Array.from(
     interpretTokens(
@@ -467,7 +471,7 @@ const wrapTag = (tag: string, token: TextToken, helpers: InterpretHelpers<string
 export const handlers: Record<string, Handler> = {
     bold: (token, h) => wrapTag("strong", token, h),
     italic: (token, h) => wrapTag("em", token, h),
-    code: (token) => ({type: "text", text: `<code>${token.value}</code>`}),
+    code: (token, h) => ({type: "text", text: `<code>${h.flattenText(token.value)}</code>`}),
     comment: () => ({type: "drop"}),
 };
 ```
@@ -513,7 +517,7 @@ Key principles:
 ## Real-world Example
 
 A complete pipeline: parse DSL text → interpret to HTML AST → render to string. With multiple token types, env-driven
-locale, and dual output (rich + plain text for search).
+theme, and dual output (rich + plain text for search).
 
 ```ts
 // ── types.ts ──
@@ -522,20 +526,20 @@ type HtmlNode =
     | { kind: "element"; tag: string; attrs?: Record<string, string>; children: HtmlNode[] };
 
 interface Env {
-    locale: "en" | "zh";
     theme: "light" | "dark";
 }
 
 // ── parser.ts ──
-import {createEasySyntax, createParser, createSimpleInlineHandlers} from "yume-dsl-rich-text";
-
-const syntax = createEasySyntax({
-    tag: "%%",
-});
+import {createParser, createSimpleInlineHandlers, createPipeHandlers} from "yume-dsl-rich-text";
 
 const parser = createParser({
-    syntax,
-    handlers: createSimpleInlineHandlers(["bold", "italic", "link", "color"]),
+    handlers: {
+        ...createSimpleInlineHandlers(["bold", "italic"]),
+        // link uses pipe: $$link(url | display text)$$
+        ...createPipeHandlers({
+            link: {inline: (args) => ({type: "link", url: args.text(0, "#"), value: args.materializedTailTokens(1)})},
+        }),
+    },
 });
 
 // ── handlers.ts ──
@@ -552,10 +556,7 @@ const el = (tag: string, token: TextToken, h: H, attrs?: Record<string, string>)
 const handlers: Record<string, (token: TextToken, h: H) => ResolvedResult<HtmlNode>> = {
     bold: (token, h) => el("strong", token, h),
     italic: (token, h) => el("em", token, h),
-    link: (token, h) => el("a", token, h, {href: token.props?.href ?? "#"}),
-    color: (token, h) => el("span", token, h, {
-        style: `color: ${h.env.theme === "dark" ? "var(--c-light)" : token.props?.value ?? "inherit"}`,
-    }),
+    link: (token, h) => el("a", token, h, {href: (token.url as string) ?? "#"}),
 };
 
 // ── ruleset.ts ──
@@ -582,9 +583,9 @@ const renderNode = (node: HtmlNode): string => {
 // ── usage ──
 import {interpretTokens, collectNodes, flattenText} from "yume-dsl-token-walker";
 
-const input = "Hello %%bold(%%italic(world)%%)%% - %%link(click here){href=https://example.com}%%";
+const input = "Hello $$bold($$italic(world)$$)$$ - $$link(https://example.com | click here)$$";
 const tokens = parser.parse(input);
-const env: Env = {locale: "zh", theme: "dark"};
+const env: Env = {theme: "dark"};
 
 // rich output
 const nodes = collectNodes(interpretTokens(tokens, ruleset, env));
@@ -628,7 +629,7 @@ function* interpretText<TNode, TEnv>(
 Use this when you want a small derived-package helper without changing the package boundary.
 It still consumes `TextToken[]` internally and does not use `parser.structural(...)`.
 
-`ParserLike` means any object with `parse(input: string): TextToken[]`.
+`ParserLike` means any object with `parse(input: string, overrides?: ParseOverrides): TextToken[]`.
 
 #### `interpretTokens(tokens, ruleset, env)`
 
@@ -999,10 +1000,12 @@ The `wrap` callback receives the awaited handler result:
 import {fromAsyncHandlerMap, wrapAsyncHandlers, type AsyncTokenHandler} from "yume-dsl-token-walker";
 
 const raw: Record<string, AsyncTokenHandler<string>> = {
-    info: async (token, h) => ({type: "nodes", nodes: (async function* () {
-        yield "[INFO] ";
-        yield* h.interpretChildren(token.value);
-    })()}),
+    info: async (token, h) => ({
+        type: "nodes", nodes: (async function* () {
+            yield "[INFO] ";
+            yield* h.interpretChildren(token.value);
+        })()
+    }),
 };
 
 const wrapped = wrapAsyncHandlers(raw, async (result, token) => {
@@ -1045,12 +1048,12 @@ interface AsyncInterpretRuleset<TNode, TEnv = unknown> {
 }
 ```
 
-| Field         | Description                                                                                    |
-|---------------|------------------------------------------------------------------------------------------------|
-| `createText`  | Wrap a plain string into your node type — **synchronous**                                      |
-| `interpret`   | Map a DSL token to an interpret result — may return `Promise`                                  |
+| Field         | Description                                                                                     |
+|---------------|-------------------------------------------------------------------------------------------------|
+| `createText`  | Wrap a plain string into your node type — **synchronous**                                       |
+| `interpret`   | Map a DSL token to an interpret result — may return `Promise`                                   |
 | `onUnhandled` | What to do when `interpret` returns `"unhandled"` (default: `"flatten"`) — may return `Promise` |
-| `onError`     | Optional observer called before any error is thrown                                            |
+| `onError`     | Optional observer called before any error is thrown                                             |
 
 #### AsyncInterpretResult
 
@@ -1086,9 +1089,9 @@ type AsyncUnhandledStrategy<TNode, TEnv = unknown> =
     | "flatten"
     | "drop"
     | ((
-          token: TextToken,
-          helpers: AsyncInterpretHelpers<TNode, TEnv>,
-      ) => Awaitable<AsyncResolvedResult<TNode>>);
+    token: TextToken,
+    helpers: AsyncInterpretHelpers<TNode, TEnv>,
+) => Awaitable<AsyncResolvedResult<TNode>>);
 ```
 
 #### AsyncInterpretHelpers
@@ -1127,6 +1130,107 @@ type AsyncTokenHandler<TNode, TEnv = unknown> = (
     helpers: AsyncInterpretHelpers<TNode, TEnv>,
 ) => Awaitable<AsyncResolvedResult<TNode>>;
 ```
+
+---
+
+## Structural Slice
+
+Use `parseStructural` from `yume-dsl-rich-text` to pre-scan a document (fast, ~50x cheaper than `parseRichText`),
+then use `parseSlice` to selectively parse only the regions you need with correct position mapping back to
+the original document.
+
+> **TL;DR** — `parseStructural` gives you the map; `parseSlice` lets you jump to any point on it
+> and get fully positioned `TextToken[]` without re-parsing the whole document.
+
+### Full pipeline example
+
+```ts
+import {createParser, createSimpleInlineHandlers, buildPositionTracker} from "yume-dsl-rich-text";
+import {parseSlice, interpretTokens, collectNodes} from "yume-dsl-token-walker";
+
+const parser = createParser({
+    handlers: createSimpleInlineHandlers(["bold", "italic"]),
+});
+
+const fullText = "intro\n$$bold(hello $$italic(world)$$)$$\noutro";
+
+// 1. Pre-scan: fast structural pass with positions
+const structural = parser.structural(fullText, {trackPositions: true});
+
+// 2. Build tracker once, reuse for all slices
+const tracker = buildPositionTracker(fullText);
+
+// 3. Pick a node and parse just that region
+const boldNode = structural.find(n => n.type === "inline" && n.tag === "bold");
+if (boldNode?.position) {
+    const tokens = parseSlice(fullText, boldNode.position, parser, tracker);
+    // tokens have correct offset/line/column relative to fullText
+
+    // 4. Interpret as usual
+    const html = collectNodes(
+        interpretTokens(tokens, {
+            createText: (t) => t,
+            interpret: (token, helpers) => {
+                if (token.type === "bold")
+                    return {type: "nodes", nodes: ["<b>", ...helpers.interpretChildren(token.value), "</b>"]};
+                if (token.type === "italic")
+                    return {type: "nodes", nodes: ["<em>", ...helpers.interpretChildren(token.value), "</em>"]};
+                return {type: "unhandled"};
+            },
+        }, undefined),
+    ).join("");
+}
+```
+
+Without `tracker`, `parseSlice` still works — `offset` is correct, but `line`/`column` are local to the slice.
+With `tracker`, all three fields point back to the original document.
+Build the tracker **once** with `buildPositionTracker(fullText)` — do not rebuild per slice.
+
+### `parseSlice(fullText, span, parser, tracker?)`
+
+Slice a region from `fullText` using a `SourceSpan`, then parse with position mapping.
+
+```ts
+const parseSlice: (
+    fullText: string,
+    span: SourceSpan,
+    parser: ParserLike,
+    tracker?: PositionTracker,
+) => TextToken[];
+```
+
+| Param      | Description                                                                        |
+|------------|------------------------------------------------------------------------------------|
+| `fullText` | The complete source text                                                           |
+| `span`     | Region to parse — typically `StructuralNode.position`                              |
+| `parser`   | A parser with `parse(input, overrides?)`                                           |
+| `tracker`  | Optional tracker from `buildPositionTracker(fullText)` for correct `line`/`column` |
+
+Position tracking is always enabled. `baseOffset` is derived from `span.start.offset`.
+
+### ParseOverrides
+
+Options accepted by `ParserLike.parse` as the second argument:
+
+```ts
+interface ParseOverrides {
+    trackPositions?: boolean;
+    baseOffset?: number;
+    tracker?: PositionTracker;
+}
+```
+
+### ParserLike
+
+Parser interface used by `interpretText`, `interpretTextAsync`, and `parseSlice`:
+
+```ts
+interface ParserLike {
+    parse: (input: string, overrides?: ParseOverrides) => TextToken[];
+}
+```
+
+`createParser(...)` from `yume-dsl-rich-text` satisfies this interface.
 
 ---
 

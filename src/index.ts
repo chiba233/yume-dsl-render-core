@@ -6,6 +6,7 @@ export type {
   AsyncUnhandledStrategy,
   Awaitable,
   InterpretResult,
+  ParseOverrides,
   ResolvedResult,
   InterpretHelpers,
   UnhandledStrategy,
@@ -14,6 +15,7 @@ export type {
 } from "./types.ts";
 
 export { flattenText, interpretText, interpretTokens } from "./interpret.ts";
+export { parseSlice } from "./slice.ts";
 export { interpretTextAsync, interpretTokensAsync } from "./interpretAsync.ts";
 export type { AsyncTokenHandler, TokenHandler, TextResult } from "./helpers.ts";
 export {

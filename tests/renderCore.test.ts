@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { createParser, createSimpleInlineHandlers, parseRichText, type TextToken } from "yume-dsl-rich-text";
+import {
+  buildPositionTracker,
+  createParser,
+  createSimpleInlineHandlers,
+  parseRichText,
+  type TextToken,
+} from "yume-dsl-rich-text";
 import {
   collectNodesAsync,
   type AsyncInterpretRuleset,
@@ -8,6 +14,7 @@ import {
   interpretTextAsync,
   interpretTokens,
   interpretTokensAsync,
+  parseSlice,
 } from "../src/index.ts";
 
 interface TestCase {
@@ -111,6 +118,54 @@ const cases: TestCase[] = [
         interpretTextAsync("$$bold(a $$italic(b)$$ c)$$", parser, asyncHtmlRuleset, { tone: "soft" }),
       );
       assert.equal(result.join(""), '<strong data-tone="soft">a <em>b</em> c</strong>');
+    },
+  },
+  {
+    name: "parseSlice -> should shift offset without tracker and keep local line/column",
+    run: () => {
+      const fullText = "hello\n$$bold(world)$$\nnext";
+      const start = 6;
+      const end = 21;
+      const tokens = parseSlice(
+        fullText,
+        {
+          start: { offset: start, line: 2, column: 1 },
+          end: { offset: end, line: 2, column: 16 },
+        },
+        parser,
+      );
+
+      assert.equal(tokens.length, 1);
+      assert.equal(tokens[0].type, "bold");
+      assert.deepEqual(tokens[0].position, {
+        start: { offset: start, line: 1, column: 1 },
+        end: { offset: end, line: 1, column: 16 },
+      });
+    },
+  },
+  {
+    name: "parseSlice -> should map offset and line/column with tracker",
+    run: () => {
+      const fullText = "hello\n$$bold(world)$$\nnext";
+      const start = 6;
+      const end = 21;
+      const tracker = buildPositionTracker(fullText);
+      const tokens = parseSlice(
+        fullText,
+        {
+          start: { offset: start, line: 2, column: 1 },
+          end: { offset: end, line: 2, column: 16 },
+        },
+        parser,
+        tracker,
+      );
+
+      assert.equal(tokens.length, 1);
+      assert.equal(tokens[0].type, "bold");
+      assert.deepEqual(tokens[0].position, {
+        start: { offset: start, line: 2, column: 1 },
+        end: { offset: end, line: 2, column: 16 },
+      });
     },
   },
   {

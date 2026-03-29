@@ -1,11 +1,17 @@
-import type { SourceSpan, TextToken } from "yume-dsl-rich-text";
+import type { PositionTracker, SourceSpan, TextToken } from "yume-dsl-rich-text";
 
 // ── Result ──
 
 export type Awaitable<T> = T | Promise<T>;
 
+export interface ParseOverrides {
+  trackPositions?: boolean;
+  baseOffset?: number;
+  tracker?: PositionTracker;
+}
+
 export interface ParserLike {
-  parse: (input: string) => TextToken[];
+  parse: (input: string, overrides?: ParseOverrides) => TextToken[];
 }
 
 export type InterpretResult<TNode> =

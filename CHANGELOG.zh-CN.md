@@ -11,6 +11,14 @@
 - `AsyncInterpretRuleset.createText` 刻意保持同步 (`(text: string) => TNode`)；
   只有 `interpret` 和 `onUnhandled` 策略函数接受 `Awaitable` 返回值
 - 错误处理、递归检测和 `onError` 行为与同步 API 完全一致
+- 新增辅助函数：`parseSlice(fullText, span, parser, tracker?)` — 按 `SourceSpan`（例如来自
+  `parseStructural`）从完整文本中切片解析，自动设置 `baseOffset`，可选传入 `tracker` 实现
+  完整的位置映射回原始文档
+- 新增类型：`ParseOverrides` — `ParserLike.parse` 第二参数接受的选项
+  （`trackPositions`、`baseOffset`、`tracker`）
+- `ParserLike.parse` 现在接受可选的第二参数 `overrides?: ParseOverrides`
+  （向后兼容——不传 overrides 的现有代码不受影响）
+- 更新 `yume-dsl-rich-text` 依赖至 `^1.0.7`（需要 `>=1.0.6` 才能使用 `baseOffset`/`tracker` 支持）
 - 对现有同步导出无破坏性变更
 
 ### 1.0.1
