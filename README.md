@@ -20,6 +20,9 @@ output — the walking is an implementation detail.
 
 You provide rules. It walks the tree, yields output nodes, and gets out of the way.
 
+Both **synchronous** (`Generator`) and **asynchronous** (`AsyncGenerator`) APIs are provided.
+The async API is a full mirror of the sync core — same semantics, same error handling, same safety guarantees.
+
 **Core API is stable.** Future updates will prioritize backward compatibility; breaking changes, if any, will land in
 major versions with explicit migration notes.
 
@@ -47,24 +50,41 @@ If you need custom delimiters or a custom escape marker upstream, prefer `create
     - [Drop a token entirely](#drop-a-token-entirely)
 - [Recommended Structure](#recommended-structure)
 - [Real-world Example](#real-world-example)
-- [API — Core](#api--core)
-    - [interpretText](#interprettextinput-parser-ruleset-env)
-    - [interpretTokens](#interprettokenstokens-ruleset-env)
-    - [flattenText](#flattentextvalue)
-- [API — Helpers](#api--helpers)
-    - [createRuleset](#createrulesetruleset)
-    - [fromHandlerMap](#fromhandlermaphandlers)
-    - [dropToken](#droptoken)
-    - [unwrapChildren](#unwrapchildren)
-    - [wrapHandlers](#wraphandlershandlers-wrap)
-    - [debugUnhandled](#debugunhandledformat)
-    - [collectNodes](#collectnodesiterable)
-- [Types](#types)
-    - [InterpretRuleset](#interpretruleset)
-    - [InterpretResult](#interpretresult)
-    - [ResolvedResult](#resolvedresult)
-    - [UnhandledStrategy](#unhandledstrategy)
-    - [InterpretHelpers](#interprethelpers)
+- [Synchronous API](#synchronous-api)
+    - [Core](#sync-api--core)
+        - [interpretText](#interprettextinput-parser-ruleset-env)
+        - [interpretTokens](#interprettokenstokens-ruleset-env)
+        - [flattenText](#flattentextvalue)
+    - [Helpers](#sync-api--helpers)
+        - [createRuleset](#createrulesetruleset)
+        - [fromHandlerMap](#fromhandlermaphandlers)
+        - [dropToken](#droptoken)
+        - [unwrapChildren](#unwrapchildren)
+        - [wrapHandlers](#wraphandlershandlers-wrap)
+        - [debugUnhandled](#debugunhandledformat)
+        - [collectNodes](#collectnodesiterable)
+    - [Types](#sync-types)
+        - [InterpretRuleset](#interpretruleset)
+        - [InterpretResult](#interpretresult)
+        - [ResolvedResult](#resolvedresult)
+        - [UnhandledStrategy](#unhandledstrategy)
+        - [InterpretHelpers](#interprethelpers)
+- [Asynchronous API](#asynchronous-api)
+    - [Core](#async-api--core)
+        - [interpretTextAsync](#interprettextasyncinput-parser-ruleset-env)
+        - [interpretTokensAsync](#interprettokensasynctokens-ruleset-env)
+    - [Helpers](#async-api--helpers)
+        - [fromAsyncHandlerMap](#fromasynchandlermaphandlers)
+        - [wrapAsyncHandlers](#wrapasynchandlershandlers-wrap)
+        - [collectNodesAsync](#collectnodesasynciterable)
+    - [Types](#async-types)
+        - [AsyncInterpretRuleset](#asyncinterpretruleset)
+        - [AsyncInterpretResult](#asyncinterpretresult)
+        - [AsyncResolvedResult](#asyncresolvedresult)
+        - [AsyncUnhandledStrategy](#asyncunhandledstrategy)
+        - [AsyncInterpretHelpers](#asyncinterprethelpers)
+        - [Awaitable](#awaitablet)
+        - [AsyncTokenHandler](#asynctokenhandler)
 - [Error Handling](#error-handling)
     - [onError](#onerror)
     - [Error phases](#error-phases)
@@ -147,6 +167,8 @@ If you do not need custom syntax, omit `syntax` and use plain `createParser(...)
 
 All public exports at a glance:
 
+**Synchronous**
+
 | Export              | Kind     | Description                                                                       |
 |---------------------|----------|-----------------------------------------------------------------------------------|
 | `interpretText`     | function | Recommended convenience API: parse DSL text with a parser, then yield output nodes |
@@ -166,6 +188,23 @@ All public exports at a glance:
 | `UnhandledStrategy` | type     | `"throw" \| "flatten" \| "drop" \| function`                                      |
 | `TokenHandler`      | type     | Shorthand for a single handler function signature                                 |
 | `TextResult`        | type     | `{ type: "text"; text: string }` — return type of `debugUnhandled`'s callback     |
+
+**Asynchronous**
+
+| Export                    | Kind     | Description                                                                         |
+|---------------------------|----------|-------------------------------------------------------------------------------------|
+| `interpretTextAsync`      | function | Async convenience API: parse DSL text with a parser, then yield output nodes         |
+| `interpretTokensAsync`    | function | Async walk of a token tree — yields output nodes via `AsyncGenerator`                |
+| `fromAsyncHandlerMap`     | helper   | Build an async `interpret` function from a `Record<type, handler>` map               |
+| `wrapAsyncHandlers`       | helper   | Wrap every async handler in a record with a shared transformation                    |
+| `collectNodesAsync`       | helper   | Collect an `AsyncIterable<TNode>` into an array                                     |
+| `AsyncInterpretRuleset`   | type     | Async ruleset interface passed to `interpretTokensAsync`                             |
+| `AsyncInterpretResult`    | type     | Return type of async `interpret` — nodes may be `AsyncIterable`                      |
+| `AsyncResolvedResult`     | type     | `AsyncInterpretResult` minus `"unhandled"`                                           |
+| `AsyncInterpretHelpers`   | type     | Async helpers — `interpretChildren` returns `AsyncIterable<TNode>`                   |
+| `AsyncUnhandledStrategy`  | type     | Async version of `UnhandledStrategy` — callback may return `Awaitable`               |
+| `AsyncTokenHandler`       | type     | Shorthand for an async handler function signature                                    |
+| `Awaitable`               | type     | `T \| Promise<T>` — used in async API signatures                                    |
 
 ---
 
@@ -569,9 +608,11 @@ Use it only when you need structural syntax information, not when you want to in
 
 ---
 
-## API — Core
+## Synchronous API
 
-### `interpretText(input, parser, ruleset, env)`
+### Sync API — Core
+
+#### `interpretText(input, parser, ruleset, env)`
 
 Thin convenience wrapper around `parser.parse(input)` + `interpretTokens(...)`.
 
@@ -589,7 +630,7 @@ It still consumes `TextToken[]` internally and does not use `parser.structural(.
 
 `ParserLike` means any object with `parse(input: string): TextToken[]`.
 
-### `interpretTokens(tokens, ruleset, env)`
+#### `interpretTokens(tokens, ruleset, env)`
 
 Lazily walks a `TextToken[]` tree and yields `TNode` values via a generator.
 
@@ -604,8 +645,10 @@ function* interpretTokens<TNode, TEnv>(
 - Streaming — nodes are yielded one at a time, never buffered
 - Recursion-safe — detects self-referencing tokens and throws
 - Circular-safe — detects circular `value` arrays during `flattenText` and throws
+- When `trackPositions: true` is set upstream, each `token.position` carries `SourceSpan` —
+  available inside handlers and forwarded to `onError`
 
-### `flattenText(value)`
+#### `flattenText(value)`
 
 Companion utility. Recursively extracts plain text from a `string | TextToken[]` value.
 
@@ -618,11 +661,11 @@ const flattenText: (value: string | TextToken[]) => string;
 
 ---
 
-## API — Helpers
+### Sync API — Helpers
 
 Optional utilities that do not affect the core. Import only what you need.
 
-### `createRuleset(ruleset)`
+#### `createRuleset(ruleset)`
 
 Identity function that enables full type inference for `InterpretRuleset`:
 
@@ -635,7 +678,7 @@ const ruleset = createRuleset({
 });
 ```
 
-### `fromHandlerMap(handlers)`
+#### `fromHandlerMap(handlers)`
 
 Table-driven `interpret` — maps token types to handler functions:
 
@@ -659,7 +702,7 @@ const ruleset = createRuleset({
 
 Unmatched tokens automatically return `{ type: "unhandled" }`.
 
-### `dropToken`
+#### `dropToken`
 
 A ready-made handler that drops a token entirely — emits nothing. Equivalent to `() => ({ type: "drop" })` but saves
 the boilerplate:
@@ -674,7 +717,7 @@ const interpret = fromHandlerMap({
 });
 ```
 
-### `unwrapChildren`
+#### `unwrapChildren`
 
 A ready-made handler that interprets children and passes them through without wrapping. Use it for tokens that are
 structural but produce no visible container:
@@ -689,7 +732,7 @@ const interpret = fromHandlerMap({
 });
 ```
 
-### `wrapHandlers(handlers, wrap)`
+#### `wrapHandlers(handlers, wrap)`
 
 Wraps every handler in a record with a shared transformation. The `wrap` callback receives the handler's result, the
 token, and helpers — return a new `ResolvedResult`.
@@ -723,7 +766,7 @@ const interpret = fromHandlerMap({
 });
 ```
 
-### `debugUnhandled(format?)`
+#### `debugUnhandled(format?)`
 
 Returns an `onUnhandled` function that renders unhandled tokens as visible placeholders. Useful for debugging, testing,
 and token visualization:
@@ -738,7 +781,7 @@ const ruleset = createRuleset({
 });
 ```
 
-### `collectNodes(iterable)`
+#### `collectNodes(iterable)`
 
 Sugar for `Array.from`. Collects a lazy `Iterable<TNode>` into an array:
 
@@ -750,9 +793,9 @@ const nodes = collectNodes(interpretTokens(tokens, ruleset, env));
 
 ---
 
-## Types
+### Sync Types
 
-### InterpretRuleset
+#### InterpretRuleset
 
 The ruleset you pass to `interpretTokens`:
 
@@ -778,7 +821,7 @@ interface InterpretRuleset<TNode, TEnv = unknown> {
 | `onUnhandled` | What to do when `interpret` returns `"unhandled"` (default: `"flatten"`) |
 | `onError`     | Optional observer called before any error is thrown                      |
 
-### InterpretResult
+#### InterpretResult
 
 The return type of `interpret`:
 
@@ -799,7 +842,7 @@ type InterpretResult<TNode> =
 | `"unhandled"` | This token has no handler — delegate to `onUnhandled` strategy |
 | `"drop"`      | Emit nothing                                                   |
 
-### ResolvedResult
+#### ResolvedResult
 
 `InterpretResult<TNode>` minus `{ type: "unhandled" }`. Used as the return type for `onUnhandled` strategy functions.
 
@@ -807,7 +850,7 @@ type InterpretResult<TNode> =
 type ResolvedResult<TNode> = Exclude<InterpretResult<TNode>, { type: "unhandled" }>;
 ```
 
-### UnhandledStrategy
+#### UnhandledStrategy
 
 Controls what happens when `interpret` returns `{ type: "unhandled" }`:
 
@@ -826,7 +869,7 @@ type UnhandledStrategy<TNode, TEnv = unknown> =
 | `"drop"`    | Emit nothing                                                                  |
 | function    | Custom resolution — must return a `ResolvedResult` (no `"unhandled"` allowed) |
 
-### InterpretHelpers
+#### InterpretHelpers
 
 Passed to `interpret` and strategy functions:
 
@@ -846,6 +889,247 @@ interface InterpretHelpers<TNode, TEnv = unknown> {
 
 ---
 
+## Asynchronous API
+
+The async API mirrors the synchronous core. Use it when your `interpret` function needs to `await` — for example,
+fetching remote content, querying a database, or calling an async renderer.
+
+Key design decisions:
+
+- `createText` is **synchronous** — text wrapping is always a pure, fast operation
+- `interpret` and `onUnhandled` strategy functions may return `Awaitable<T>` (`T | Promise<T>`)
+- `interpretChildren` returns `AsyncIterable<TNode>` — consume with `for await` or `yield*` in an async generator
+- `nodes` in the result may be `Iterable<TNode>` or `AsyncIterable<TNode>`
+- Error handling, recursion detection, and `onError` behavior are identical to the synchronous API
+
+### Async Quick Start
+
+```ts
+import {createParser, createSimpleInlineHandlers} from "yume-dsl-rich-text";
+import {interpretTextAsync, collectNodesAsync} from "yume-dsl-token-walker";
+
+const parser = createParser({
+    handlers: createSimpleInlineHandlers(["bold"]),
+});
+
+const html = (
+    await collectNodesAsync(
+        interpretTextAsync("Hello $$bold(world)$$", parser, {
+            createText: (text) => text,
+            interpret: async (token, helpers) => {
+                if (token.type === "bold") {
+                    return {
+                        type: "nodes",
+                        nodes: (async function* () {
+                            yield "<strong>";
+                            yield* helpers.interpretChildren(token.value);
+                            yield "</strong>";
+                        })(),
+                    };
+                }
+                return {type: "unhandled"};
+            },
+        }, {}),
+    )
+).join("");
+
+// → "Hello <strong>world</strong>"
+```
+
+### Async API — Core
+
+#### `interpretTextAsync(input, parser, ruleset, env)`
+
+Async convenience wrapper around `parser.parse(input)` + `interpretTokensAsync(...)`.
+
+```ts
+async function* interpretTextAsync<TNode, TEnv>(
+    input: string,
+    parser: ParserLike,
+    ruleset: AsyncInterpretRuleset<TNode, TEnv>,
+    env: TEnv,
+): AsyncGenerator<TNode>;
+```
+
+#### `interpretTokensAsync(tokens, ruleset, env)`
+
+Lazily walks a `TextToken[]` tree and yields `TNode` values via an async generator.
+
+```ts
+async function* interpretTokensAsync<TNode, TEnv>(
+    tokens: TextToken[],
+    ruleset: AsyncInterpretRuleset<TNode, TEnv>,
+    env: TEnv,
+): AsyncGenerator<TNode>;
+```
+
+- Streaming — nodes are yielded one at a time, never buffered
+- Recursion-safe — detects self-referencing tokens and throws
+- Supports both sync and async iterables in `nodes` results
+
+### Async API — Helpers
+
+#### `fromAsyncHandlerMap(handlers)`
+
+Async version of `fromHandlerMap`. Maps token types to async handler functions:
+
+```ts
+import {fromAsyncHandlerMap} from "yume-dsl-token-walker";
+
+const interpret = fromAsyncHandlerMap({
+    bold: async (token, helpers) => ({
+        type: "nodes",
+        nodes: (async function* () {
+            yield "<strong>";
+            yield* helpers.interpretChildren(token.value);
+            yield "</strong>";
+        })(),
+    }),
+});
+```
+
+Unmatched tokens automatically return `{ type: "unhandled" }`.
+
+#### `wrapAsyncHandlers(handlers, wrap)`
+
+Async version of `wrapHandlers`. Wraps every async handler with a shared transformation.
+The `wrap` callback receives the awaited handler result:
+
+```ts
+import {fromAsyncHandlerMap, wrapAsyncHandlers, type AsyncTokenHandler} from "yume-dsl-token-walker";
+
+const raw: Record<string, AsyncTokenHandler<string>> = {
+    info: async (token, h) => ({type: "nodes", nodes: (async function* () {
+        yield "[INFO] ";
+        yield* h.interpretChildren(token.value);
+    })()}),
+};
+
+const wrapped = wrapAsyncHandlers(raw, async (result, token) => {
+    if (result.type !== "nodes") return result;
+    return {type: "text", text: `<div class="${token.type}">${/* ... */}</div>`};
+});
+```
+
+#### `collectNodesAsync(iterable)`
+
+Collects an `AsyncIterable<TNode>` into an array:
+
+```ts
+import {interpretTokensAsync, collectNodesAsync} from "yume-dsl-token-walker";
+
+const nodes = await collectNodesAsync(interpretTokensAsync(tokens, ruleset, env));
+```
+
+### Async Types
+
+#### AsyncInterpretRuleset
+
+The ruleset you pass to `interpretTokensAsync`:
+
+```ts
+interface AsyncInterpretRuleset<TNode, TEnv = unknown> {
+    createText: (text: string) => TNode;
+    interpret: (
+        token: TextToken,
+        helpers: AsyncInterpretHelpers<TNode, TEnv>,
+    ) => Awaitable<AsyncInterpretResult<TNode>>;
+    onUnhandled?: AsyncUnhandledStrategy<TNode, TEnv>;
+    onError?: (context: {
+        error: Error;
+        phase: "interpret" | "flatten" | "traversal" | "internal";
+        token?: TextToken;
+        position?: SourceSpan;
+        env: TEnv;
+    }) => void;
+}
+```
+
+| Field         | Description                                                                                    |
+|---------------|------------------------------------------------------------------------------------------------|
+| `createText`  | Wrap a plain string into your node type — **synchronous**                                      |
+| `interpret`   | Map a DSL token to an interpret result — may return `Promise`                                  |
+| `onUnhandled` | What to do when `interpret` returns `"unhandled"` (default: `"flatten"`) — may return `Promise` |
+| `onError`     | Optional observer called before any error is thrown                                            |
+
+#### AsyncInterpretResult
+
+The return type of async `interpret`:
+
+```ts
+type AsyncInterpretResult<TNode> =
+    | { type: "nodes"; nodes: Iterable<TNode> | AsyncIterable<TNode> }
+    | { type: "text"; text: string }
+    | { type: "flatten" }
+    | { type: "unhandled" }
+    | { type: "drop" };
+```
+
+The `"nodes"` variant accepts both `Iterable` and `AsyncIterable`, so you can return a plain array
+or an async generator.
+
+#### AsyncResolvedResult
+
+`AsyncInterpretResult<TNode>` minus `{ type: "unhandled" }`:
+
+```ts
+type AsyncResolvedResult<TNode> = Exclude<AsyncInterpretResult<TNode>, { type: "unhandled" }>;
+```
+
+#### AsyncUnhandledStrategy
+
+Async version of `UnhandledStrategy` — the callback may return `Awaitable`:
+
+```ts
+type AsyncUnhandledStrategy<TNode, TEnv = unknown> =
+    | "throw"
+    | "flatten"
+    | "drop"
+    | ((
+          token: TextToken,
+          helpers: AsyncInterpretHelpers<TNode, TEnv>,
+      ) => Awaitable<AsyncResolvedResult<TNode>>);
+```
+
+#### AsyncInterpretHelpers
+
+Passed to async `interpret` and strategy functions:
+
+```ts
+interface AsyncInterpretHelpers<TNode, TEnv = unknown> {
+    interpretChildren: (value: string | TextToken[]) => AsyncIterable<TNode>;
+    flattenText: (value: string | TextToken[]) => string;
+    env: TEnv;
+}
+```
+
+| Field               | Description                                                                   |
+|---------------------|-------------------------------------------------------------------------------|
+| `interpretChildren` | Recursively interpret child tokens — returns `AsyncIterable<TNode>`           |
+| `flattenText`       | Extract plain text from a token value — same synchronous function as sync API |
+| `env`               | User-provided environment, passed through from `interpretTokensAsync`         |
+
+#### `Awaitable<T>`
+
+```ts
+type Awaitable<T> = T | Promise<T>;
+```
+
+Used throughout async API signatures to accept both synchronous and asynchronous returns.
+
+#### AsyncTokenHandler
+
+Shorthand for an async handler function signature:
+
+```ts
+type AsyncTokenHandler<TNode, TEnv = unknown> = (
+    token: TextToken,
+    helpers: AsyncInterpretHelpers<TNode, TEnv>,
+) => Awaitable<AsyncResolvedResult<TNode>>;
+```
+
+---
+
 ## Error Handling
 
 ### onError
@@ -853,16 +1137,30 @@ interface InterpretHelpers<TNode, TEnv = unknown> {
 Optional error observer. Called with context before the error is thrown. It does **not** suppress the error — the error
 is always rethrown after `onError` returns.
 
-`position` is forwarded from `token.position` when the upstream parser enabled source tracking, for example via
-`createParser({ trackPositions: true, ... })`.
+`position` is forwarded from `token.position` when the upstream parser enabled source tracking via
+`createParser({ trackPositions: true, ... })`. A `SourceSpan` contains `start` and `end`, each with
+`offset` (zero-indexed), `line` (one-indexed), and `column` (one-indexed).
+When position tracking is not enabled, `position` is `undefined`.
 
 ```ts
+const parser = createParser({
+    handlers: createSimpleInlineHandlers(["bold"]),
+    trackPositions: true,  // ← enable source location tracking
+});
+
 const ruleset = {
     createText: (text: string) => text,
     interpret: () => ({type: "unhandled" as const}),
     onUnhandled: "throw" as const,
     onError: ({error, phase, token, position, env}) => {
-        console.error(`[${phase}] ${error.message}`, token?.type, position?.start.offset, env);
+        if (position) {
+            console.error(
+                `[${phase}] ${error.message} at line ${position.start.line}:${position.start.column}`,
+                token?.type,
+            );
+        } else {
+            console.error(`[${phase}] ${error.message}`, token?.type);
+        }
     },
 };
 ```

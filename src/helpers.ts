@@ -1,5 +1,9 @@
 import type { TextToken } from "yume-dsl-rich-text";
 import type {
+  AsyncInterpretHelpers,
+  AsyncInterpretResult,
+  AsyncResolvedResult,
+  Awaitable,
   InterpretHelpers,
   InterpretResult,
   InterpretRuleset,
@@ -10,6 +14,11 @@ export type TokenHandler<TNode, TEnv = unknown> = (
   token: TextToken,
   helpers: InterpretHelpers<TNode, TEnv>,
 ) => ResolvedResult<TNode>;
+
+export type AsyncTokenHandler<TNode, TEnv = unknown> = (
+  token: TextToken,
+  helpers: AsyncInterpretHelpers<TNode, TEnv>,
+) => Awaitable<AsyncResolvedResult<TNode>>;
 
 export type TextResult = { type: "text"; text: string };
 
@@ -60,6 +69,34 @@ export const wrapHandlers = <TNode, TEnv = unknown>(
   return wrapped;
 };
 
+export const fromAsyncHandlerMap = <TNode, TEnv = unknown>(
+  handlers: Record<string, AsyncTokenHandler<TNode, TEnv>>,
+): ((
+  token: TextToken,
+  helpers: AsyncInterpretHelpers<TNode, TEnv>,
+) => Awaitable<AsyncInterpretResult<TNode>>) => {
+  return (token, helpers) => {
+    const handler = handlers[token.type];
+    if (handler) return handler(token, helpers);
+    return { type: "unhandled" };
+  };
+};
+
+export const wrapAsyncHandlers = <TNode, TEnv = unknown>(
+  handlers: Record<string, AsyncTokenHandler<TNode, TEnv>>,
+  wrap: (
+    result: AsyncResolvedResult<TNode>,
+    token: TextToken,
+    helpers: AsyncInterpretHelpers<TNode, TEnv>,
+  ) => Awaitable<AsyncResolvedResult<TNode>>,
+): Record<string, AsyncTokenHandler<TNode, TEnv>> => {
+  const wrapped: Record<string, AsyncTokenHandler<TNode, TEnv>> = {};
+  for (const [type, handler] of Object.entries(handlers)) {
+    wrapped[type] = async (token, helpers) => wrap(await handler(token, helpers), token, helpers);
+  }
+  return wrapped;
+};
+
 // ── Strategy helpers ──
 
 export function debugUnhandled(
@@ -69,3 +106,9 @@ export function debugUnhandled(
 }
 
 export const collectNodes = <TNode>(iterable: Iterable<TNode>): TNode[] => Array.from(iterable);
+
+export const collectNodesAsync = async <TNode>(iterable: AsyncIterable<TNode>): Promise<TNode[]> => {
+  const nodes: TNode[] = [];
+  for await (const node of iterable) nodes.push(node);
+  return nodes;
+};

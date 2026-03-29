@@ -1,5 +1,18 @@
 # Changelog
 
+### 1.0.2
+
+- Added async interpretation API — a full async mirror of the synchronous core
+- New core functions: `interpretTokensAsync`, `interpretTextAsync`
+- New helper functions: `fromAsyncHandlerMap`, `wrapAsyncHandlers`, `collectNodesAsync`
+- New types: `AsyncInterpretRuleset`, `AsyncInterpretResult`, `AsyncResolvedResult`,
+  `AsyncInterpretHelpers`, `AsyncUnhandledStrategy`, `AsyncTokenHandler`, `Awaitable`
+- Async API uses `AsyncGenerator` / `AsyncIterable` throughout — preserves lazy, streaming semantics
+- `AsyncInterpretRuleset.createText` is intentionally synchronous (`(text: string) => TNode`);
+  only `interpret` and `onUnhandled` strategy functions accept `Awaitable` returns
+- Error handling, recursion detection, and `onError` behavior are identical to the synchronous API
+- No breaking changes to existing synchronous exports
+
 ### 1.0.1
 
 - Updated the documentation to reflect the current recommended parser setup and examples

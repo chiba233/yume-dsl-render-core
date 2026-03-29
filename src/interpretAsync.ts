@@ -1,61 +1,41 @@
-import type {
-  InterpretHelpers,
-  InterpretResult,
-  InterpretRuleset,
-  ParserLike,
-  ResolvedResult,
-} from "./types.ts";
 import type { TextToken } from "yume-dsl-rich-text";
+import { flattenText } from "./interpret.ts";
 import { reportError, toError } from "./internalErrors.ts";
+import type {
+  AsyncInterpretHelpers,
+  AsyncInterpretResult,
+  AsyncInterpretRuleset,
+  AsyncResolvedResult,
+  ParserLike,
+} from "./types.ts";
 
-// ── Companion utility: flattenText ──
-
-const flattenTokenText = (
-  value: string | TextToken[],
-  seenValues: WeakSet<TextToken[]>,
-  seenTokens: WeakSet<TextToken>,
-): string => {
-  if (typeof value === "string") return value;
-
-  if (seenValues.has(value)) {
-    throw new Error("Circular DSL token value detected while flattening text");
-  }
-  seenValues.add(value);
-  try {
-    return value
-      .map((token) => {
-        if (seenTokens.has(token)) {
-          throw new Error(
-            `Circular DSL token detected while flattening text for type "${token.type}"`,
-          );
-        }
-        seenTokens.add(token);
-        try {
-          return flattenTokenText(token.value, seenValues, seenTokens);
-        } finally {
-          seenTokens.delete(token);
-        }
-      })
-      .join("");
-  } finally {
-    seenValues.delete(value);
-  }
+type MaybeAsyncIterable = {
+  [Symbol.asyncIterator]?: unknown;
 };
 
-export const flattenText = (value: string | TextToken[]): string =>
-  flattenTokenText(value, new WeakSet<TextToken[]>(), new WeakSet<TextToken>());
+const isAsyncIterable = <TNode>(value: Iterable<TNode> | AsyncIterable<TNode>): value is AsyncIterable<TNode> =>
+  typeof (value as MaybeAsyncIterable)[Symbol.asyncIterator] === "function";
 
-// ── Internal: resolve & iterate ──
+const iterateNodes = async function* <TNode>(
+  nodes: Iterable<TNode> | AsyncIterable<TNode>,
+): AsyncGenerator<TNode> {
+  if (isAsyncIterable(nodes)) {
+    yield* nodes;
+    return;
+  }
 
-const iterateResolved = function* <TNode, TEnv>(
-  result: ResolvedResult<TNode>,
-  ruleset: InterpretRuleset<TNode, TEnv>,
-  helpers: InterpretHelpers<TNode, TEnv>,
+  yield* nodes;
+};
+
+const iterateResolved = async function* <TNode, TEnv>(
+  result: AsyncResolvedResult<TNode>,
+  ruleset: AsyncInterpretRuleset<TNode, TEnv>,
+  helpers: AsyncInterpretHelpers<TNode, TEnv>,
   token: TextToken,
-): Generator<TNode> {
+): AsyncGenerator<TNode> {
   switch (result.type) {
     case "nodes":
-      yield* result.nodes;
+      yield* iterateNodes(result.nodes);
       return;
     case "text":
       yield ruleset.createText(result.text);
@@ -80,14 +60,14 @@ const iterateResolved = function* <TNode, TEnv>(
   }
 };
 
-const resolveResult = <TNode, TEnv>(
+const resolveResult = async <TNode, TEnv>(
   token: TextToken,
-  ruleset: InterpretRuleset<TNode, TEnv>,
-  helpers: InterpretHelpers<TNode, TEnv>,
-): ResolvedResult<TNode> => {
-  let result: InterpretResult<TNode>;
+  ruleset: AsyncInterpretRuleset<TNode, TEnv>,
+  helpers: AsyncInterpretHelpers<TNode, TEnv>,
+): Promise<AsyncResolvedResult<TNode>> => {
+  let result: AsyncInterpretResult<TNode>;
   try {
-    result = ruleset.interpret(token, helpers);
+    result = await ruleset.interpret(token, helpers);
   } catch (caught) {
     const error = toError(caught, "DSL token interpretation failed");
     reportError(ruleset.onError, helpers.env, error, "interpret", token);
@@ -100,7 +80,7 @@ const resolveResult = <TNode, TEnv>(
 
   if (typeof strategy === "function") {
     try {
-      return strategy(token, helpers);
+      return await strategy(token, helpers);
     } catch (caught) {
       const error = toError(caught, String(caught));
       reportError(ruleset.onError, helpers.env, error, "interpret", token);
@@ -127,14 +107,12 @@ const resolveResult = <TNode, TEnv>(
   }
 };
 
-// ── Internal: traversal ──
-
-const interpretIterable = function* <TNode, TEnv>(
+const interpretIterableAsync = async function* <TNode, TEnv>(
   tokens: TextToken[],
-  ruleset: InterpretRuleset<TNode, TEnv>,
-  helpers: InterpretHelpers<TNode, TEnv>,
+  ruleset: AsyncInterpretRuleset<TNode, TEnv>,
+  helpers: AsyncInterpretHelpers<TNode, TEnv>,
   activeTokens: WeakSet<TextToken>,
-): Generator<TNode> {
+): AsyncGenerator<TNode> {
   for (const token of tokens) {
     if (token.type === "text") {
       if (typeof token.value !== "string") {
@@ -154,7 +132,7 @@ const interpretIterable = function* <TNode, TEnv>(
 
     activeTokens.add(token);
     try {
-      const result = resolveResult(token, ruleset, helpers);
+      const result = await resolveResult(token, ruleset, helpers);
       yield* iterateResolved(result, ruleset, helpers, token);
     } finally {
       activeTokens.delete(token);
@@ -162,37 +140,36 @@ const interpretIterable = function* <TNode, TEnv>(
   }
 };
 
-// ── Public API ──
-
-export const interpretTokens = function* <TNode, TEnv = unknown>(
+export const interpretTokensAsync = async function* <TNode, TEnv = unknown>(
   tokens: TextToken[],
-  ruleset: InterpretRuleset<TNode, TEnv>,
+  ruleset: AsyncInterpretRuleset<TNode, TEnv>,
   env: TEnv,
-): Generator<TNode> {
+): AsyncGenerator<TNode> {
   const activeTokens = new WeakSet<TextToken>();
 
-  const interpretChildren = function* (value: string | TextToken[]): Generator<TNode> {
+  const interpretChildren = async function* (value: string | TextToken[]): AsyncGenerator<TNode> {
     if (typeof value === "string") {
       yield ruleset.createText(value);
       return;
     }
-    yield* interpretIterable(value, ruleset, helpers, activeTokens);
+
+    yield* interpretIterableAsync(value, ruleset, helpers, activeTokens);
   };
 
-  const helpers: InterpretHelpers<TNode, TEnv> = {
+  const helpers: AsyncInterpretHelpers<TNode, TEnv> = {
     interpretChildren,
     flattenText,
     env,
   };
 
-  yield* interpretIterable(tokens, ruleset, helpers, activeTokens);
+  yield* interpretIterableAsync(tokens, ruleset, helpers, activeTokens);
 };
 
-export const interpretText = function* <TNode, TEnv = unknown>(
+export const interpretTextAsync = async function* <TNode, TEnv = unknown>(
   input: string,
   parser: ParserLike,
-  ruleset: InterpretRuleset<TNode, TEnv>,
+  ruleset: AsyncInterpretRuleset<TNode, TEnv>,
   env: TEnv,
-): Generator<TNode> {
-  yield* interpretTokens(parser.parse(input), ruleset, env);
+): AsyncGenerator<TNode> {
+  yield* interpretTokensAsync(parser.parse(input), ruleset, env);
 };

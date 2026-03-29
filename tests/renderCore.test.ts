@@ -1,10 +1,18 @@
 import assert from "node:assert/strict";
 import { createParser, createSimpleInlineHandlers, parseRichText, type TextToken } from "yume-dsl-rich-text";
-import { type InterpretRuleset, interpretText, interpretTokens } from "../src/index.ts";
+import {
+  collectNodesAsync,
+  type AsyncInterpretRuleset,
+  type InterpretRuleset,
+  interpretText,
+  interpretTextAsync,
+  interpretTokens,
+  interpretTokensAsync,
+} from "../src/index.ts";
 
 interface TestCase {
   name: string;
-  run: () => void;
+  run: () => void | Promise<void>;
 }
 
 const handlers = {
@@ -39,6 +47,35 @@ const htmlRuleset: InterpretRuleset<string, { tone?: string }> = {
   },
 };
 
+const asyncHtmlRuleset: AsyncInterpretRuleset<string, { tone?: string }> = {
+  createText: (text) => text,
+  interpret: async (token, helpers) => {
+    if (token.type === "bold") {
+      return {
+        type: "nodes",
+        nodes: (async function* (): AsyncGenerator<string> {
+          yield `<strong data-tone="${helpers.env.tone ?? "none"}">`;
+          yield* helpers.interpretChildren(token.value);
+          yield "</strong>";
+        })(),
+      };
+    }
+
+    if (token.type === "italic") {
+      return {
+        type: "nodes",
+        nodes: (async function* (): AsyncGenerator<string> {
+          yield "<em>";
+          yield* helpers.interpretChildren(token.value);
+          yield "</em>";
+        })(),
+      };
+    }
+
+    return { type: "unhandled" };
+  },
+};
+
 const cases: TestCase[] = [
   {
     name: "interpretTokens -> should interpret nested token tree lazily",
@@ -56,6 +93,98 @@ const cases: TestCase[] = [
         interpretText("$$bold(a $$italic(b)$$ c)$$", parser, htmlRuleset, { tone: "soft" }),
       );
       assert.equal(result.join(""), '<strong data-tone="soft">a <em>b</em> c</strong>');
+    },
+  },
+  {
+    name: "interpretTokensAsync -> should interpret nested token tree with async handlers",
+    run: async () => {
+      const result = await collectNodesAsync(
+        interpretTokensAsync(parse("$$bold(a $$italic(b)$$ c)$$"), asyncHtmlRuleset, { tone: "soft" }),
+      );
+      assert.equal(result.join(""), '<strong data-tone="soft">a <em>b</em> c</strong>');
+    },
+  },
+  {
+    name: "interpretTextAsync -> should parse then interpret with the provided parser",
+    run: async () => {
+      const result = await collectNodesAsync(
+        interpretTextAsync("$$bold(a $$italic(b)$$ c)$$", parser, asyncHtmlRuleset, { tone: "soft" }),
+      );
+      assert.equal(result.join(""), '<strong data-tone="soft">a <em>b</em> c</strong>');
+    },
+  },
+  {
+    name: "interpretTokensAsync -> should support async interpret during flatten fallback",
+    run: async () => {
+      const result = await collectNodesAsync(
+        interpretTokensAsync(
+          parse("$$bold(hello)$$"),
+          {
+            createText: (text) => `[${text}]`,
+            interpret: async () => ({ type: "unhandled" }),
+          },
+          undefined,
+        ),
+      );
+      assert.equal(result.join(""), "[hello]");
+    },
+  },
+  {
+    name: "interpretTokensAsync -> should support async onUnhandled strategy",
+    run: async () => {
+      const result = await collectNodesAsync(
+        interpretTokensAsync(
+          parse("$$bold(hello)$$"),
+          {
+            createText: (text) => text,
+            interpret: async () => ({ type: "unhandled" }),
+            onUnhandled: async (token) => ({ type: "text", text: `[async:${token.type}]` }),
+          },
+          undefined,
+        ),
+      );
+      assert.equal(result.join(""), "[async:bold]");
+    },
+  },
+  {
+    name: "interpretTokensAsync -> should accept sync iterables in nodes results",
+    run: async () => {
+      const result = await collectNodesAsync(
+        interpretTokensAsync(
+          parse("$$bold(hello)$$"),
+          {
+            createText: (text) => text,
+            interpret: async () => ({ type: "nodes", nodes: ["<b>", "ok", "</b>"] }),
+          },
+          undefined,
+        ),
+      );
+      assert.equal(result.join(""), "<b>ok</b>");
+    },
+  },
+  {
+    name: "interpretTokensAsync -> should prefer async iterator when both sync and async are present",
+    run: async () => {
+      const dualModeNodes: Iterable<string> & AsyncIterable<string> = {
+        *[Symbol.iterator]() {
+          yield "sync";
+        },
+        async *[Symbol.asyncIterator]() {
+          yield "async";
+        },
+      };
+
+      const result = await collectNodesAsync(
+        interpretTokensAsync(
+          parse("$$bold(hello)$$"),
+          {
+            createText: (text) => text,
+            interpret: async () => ({ type: "nodes", nodes: dualModeNodes }),
+          },
+          undefined,
+        ),
+      );
+      assert.equal(result.join(""), "async");
     },
   },
   {
@@ -315,7 +444,7 @@ let failed = 0;
 
 for (const testCase of cases) {
   try {
-    testCase.run();
+    await testCase.run();
     console.log(`PASS ${testCase.name}`);
     passed++;
   } catch (error) {

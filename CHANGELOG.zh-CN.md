@@ -1,5 +1,18 @@
 # 更新日志
 
+### 1.0.2
+
+- 新增异步解释 API — 同步核心的完整异步镜像
+- 新增核心函数：`interpretTokensAsync`、`interpretTextAsync`
+- 新增辅助函数：`fromAsyncHandlerMap`、`wrapAsyncHandlers`、`collectNodesAsync`
+- 新增类型：`AsyncInterpretRuleset`、`AsyncInterpretResult`、`AsyncResolvedResult`、
+  `AsyncInterpretHelpers`、`AsyncUnhandledStrategy`、`AsyncTokenHandler`、`Awaitable`
+- 异步 API 全程使用 `AsyncGenerator` / `AsyncIterable`，保持惰性、流式语义
+- `AsyncInterpretRuleset.createText` 刻意保持同步 (`(text: string) => TNode`)；
+  只有 `interpret` 和 `onUnhandled` 策略函数接受 `Awaitable` 返回值
+- 错误处理、递归检测和 `onError` 行为与同步 API 完全一致
+- 对现有同步导出无破坏性变更
+
 ### 1.0.1
 
 - 更新文档以反映当前推荐的解析器配置和示例

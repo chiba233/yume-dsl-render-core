@@ -19,6 +19,9 @@
 
 你提供规则，它遍历树、yield 输出节点，然后闪开。
 
+同时提供**同步** (`Generator`) 和**异步** (`AsyncGenerator`) 两套 API。
+异步 API 是同步核心的完整镜像——相同语义、相同错误处理、相同安全保证。
+
 **核心 API 已稳定。** 后续更新以向后兼容为优先；如有破坏性变更，将在主版本号升级时附带明确的迁移说明。
 
 它刻意只消费 `TextToken[]`，不处理 structural parse node。
@@ -44,24 +47,41 @@
     - [完全丢弃某类 token](#完全丢弃某类-token)
 - [推荐结构](#推荐结构)
 - [完整示例](#完整示例)
-- [API — 核心](#api--核心)
-    - [interpretText](#interprettextinput-parser-ruleset-env)
-    - [interpretTokens](#interprettokenstokens-ruleset-env)
-    - [flattenText](#flattentextvalue)
-- [API — 辅助工具](#api--辅助工具)
-    - [createRuleset](#createrulesetruleset)
-    - [fromHandlerMap](#fromhandlermaphandlers)
-    - [dropToken](#droptoken)
-    - [unwrapChildren](#unwrapchildren)
-    - [wrapHandlers](#wraphandlershandlers-wrap)
-    - [debugUnhandled](#debugunhandledformat)
-    - [collectNodes](#collectnodesiterable)
-- [类型定义](#类型定义)
-    - [InterpretRuleset](#interpretruleset)
-    - [InterpretResult](#interpretresult)
-    - [ResolvedResult](#resolvedresult)
-    - [UnhandledStrategy](#unhandledstrategy)
-    - [InterpretHelpers](#interprethelpers)
+- [同步 API](#同步-api)
+    - [核心](#同步-api--核心)
+        - [interpretText](#interprettextinput-parser-ruleset-env)
+        - [interpretTokens](#interprettokenstokens-ruleset-env)
+        - [flattenText](#flattentextvalue)
+    - [辅助工具](#同步-api--辅助工具)
+        - [createRuleset](#createrulesetruleset)
+        - [fromHandlerMap](#fromhandlermaphandlers)
+        - [dropToken](#droptoken)
+        - [unwrapChildren](#unwrapchildren)
+        - [wrapHandlers](#wraphandlershandlers-wrap)
+        - [debugUnhandled](#debugunhandledformat)
+        - [collectNodes](#collectnodesiterable)
+    - [类型定义](#同步类型定义)
+        - [InterpretRuleset](#interpretruleset)
+        - [InterpretResult](#interpretresult)
+        - [ResolvedResult](#resolvedresult)
+        - [UnhandledStrategy](#unhandledstrategy)
+        - [InterpretHelpers](#interprethelpers)
+- [异步 API](#异步-api)
+    - [核心](#异步-api--核心)
+        - [interpretTextAsync](#interprettextasyncinput-parser-ruleset-env)
+        - [interpretTokensAsync](#interprettokensasynctokens-ruleset-env)
+    - [辅助工具](#异步-api--辅助工具)
+        - [fromAsyncHandlerMap](#fromasynchandlermaphandlers)
+        - [wrapAsyncHandlers](#wrapasynchandlershandlers-wrap)
+        - [collectNodesAsync](#collectnodesasynciterable)
+    - [类型定义](#异步类型定义)
+        - [AsyncInterpretRuleset](#asyncinterpretruleset)
+        - [AsyncInterpretResult](#asyncinterpretresult)
+        - [AsyncResolvedResult](#asyncresolvedresult)
+        - [AsyncUnhandledStrategy](#asyncunhandledstrategy)
+        - [AsyncInterpretHelpers](#asyncinterprethelpers)
+        - [Awaitable](#awaitablet)
+        - [AsyncTokenHandler](#asynctokenhandler)
 - [错误处理](#错误处理)
     - [onError](#onerror)
     - [错误阶段](#错误阶段)
@@ -142,6 +162,8 @@ const html = Array.from(
 
 ## 导出一览
 
+**同步**
+
 | 导出                  | 类别 | 说明                                                          |
 |---------------------|----|-------------------------------------------------------------|
 | `interpretText`     | 函数 | 推荐的便利入口：先用 parser 解析 DSL 文本，再 yield 输出节点                     |
@@ -161,6 +183,23 @@ const html = Array.from(
 | `UnhandledStrategy` | 类型 | `"throw" \| "flatten" \| "drop" \| function`                |
 | `TokenHandler`      | 类型 | 单个 handler 函数签名的简写                                          |
 | `TextResult`        | 类型 | `{ type: "text"; text: string }` — `debugUnhandled` 回调的返回类型 |
+
+**异步**
+
+| 导出                        | 类别 | 说明                                                               |
+|---------------------------|----|------------------------------------------------------------------|
+| `interpretTextAsync`      | 函数 | 异步便利入口：先用 parser 解析 DSL 文本，再通过 `AsyncGenerator` yield 输出节点        |
+| `interpretTokensAsync`    | 函数 | 异步遍历 token 树 — 通过 `AsyncGenerator` yield 输出节点                     |
+| `fromAsyncHandlerMap`     | 辅助 | 从 `Record<type, handler>` 映射构建异步 `interpret` 函数                   |
+| `wrapAsyncHandlers`       | 辅助 | 对异步 handler 映射表中的每个 handler 施加统一的包装变换                            |
+| `collectNodesAsync`       | 辅助 | 将 `AsyncIterable<TNode>` 收集为数组                                   |
+| `AsyncInterpretRuleset`   | 类型 | 传给 `interpretTokensAsync` 的异步规则集接口                               |
+| `AsyncInterpretResult`    | 类型 | 异步 `interpret` 的返回类型 — `nodes` 可以是 `AsyncIterable`               |
+| `AsyncResolvedResult`     | 类型 | `AsyncInterpretResult` 去掉 `"unhandled"`                          |
+| `AsyncInterpretHelpers`   | 类型 | 异步辅助对象 — `interpretChildren` 返回 `AsyncIterable<TNode>`           |
+| `AsyncUnhandledStrategy`  | 类型 | `UnhandledStrategy` 的异步版本 — 回调可返回 `Awaitable`                    |
+| `AsyncTokenHandler`       | 类型 | 异步 handler 函数签名的简写                                              |
+| `Awaitable`               | 类型 | `T \| Promise<T>` — 用于异步 API 签名                                 |
 
 ---
 
@@ -563,9 +602,11 @@ const plain = flattenText(tokens);
 
 ---
 
-## API — 核心
+## 同步 API
 
-### `interpretText(input, parser, ruleset, env)`
+### 同步 API — 核心
+
+#### `interpretText(input, parser, ruleset, env)`
 
 一个很薄的便利封装，本质是 `parser.parse(input)` + `interpretTokens(...)`。
 
@@ -583,7 +624,7 @@ function* interpretText<TNode, TEnv>(
 
 `ParserLike` 指任何带有 `parse(input: string): TextToken[]` 的对象。
 
-### `interpretTokens(tokens, ruleset, env)`
+#### `interpretTokens(tokens, ruleset, env)`
 
 惰性遍历 `TextToken[]` 树，通过 generator 逐个 yield `TNode`。
 
@@ -598,8 +639,10 @@ function* interpretTokens<TNode, TEnv>(
 - 流式输出 — 节点逐个 yield，内部不缓冲
 - 自引用安全 — 检测到 token 自引用时立即抛出
 - 循环安全 — `flattenText` 按递归路径追踪已访问 token，共享引用安全，真正的循环会抛出
+- 当上游设置 `trackPositions: true` 时，每个 `token.position` 携带 `SourceSpan` —
+  在 handler 内可直接访问，同时透传至 `onError`
 
-### `flattenText(value)`
+#### `flattenText(value)`
 
 辅助工具。递归提取 `string | TextToken[]` 中的纯文本。
 
@@ -612,11 +655,11 @@ const flattenText: (value: string | TextToken[]) => string;
 
 ---
 
-## API — 辅助工具
+### 同步 API — 辅助工具
 
 可选的工具函数，不影响核心逻辑。按需导入。
 
-### `createRuleset(ruleset)`
+#### `createRuleset(ruleset)`
 
 恒等函数，为 `InterpretRuleset` 提供完整的类型推断：
 
@@ -629,7 +672,7 @@ const ruleset = createRuleset({
 });
 ```
 
-### `fromHandlerMap(handlers)`
+#### `fromHandlerMap(handlers)`
 
 表驱动的 `interpret` — 将 token 类型映射到处理函数：
 
@@ -653,7 +696,7 @@ const ruleset = createRuleset({
 
 未匹配的 token 自动返回 `{ type: "unhandled" }`。
 
-### `dropToken`
+#### `dropToken`
 
 现成的 handler，直接丢弃 token，不产生任何输出。等价于 `() => ({ type: "drop" })`，省去样板代码：
 
@@ -667,7 +710,7 @@ const interpret = fromHandlerMap({
 });
 ```
 
-### `unwrapChildren`
+#### `unwrapChildren`
 
 现成的 handler，解释子节点并直接透传，不加任何包装。适合结构性 token（本身不产生可见容器）：
 
@@ -681,7 +724,7 @@ const interpret = fromHandlerMap({
 });
 ```
 
-### `wrapHandlers(handlers, wrap)`
+#### `wrapHandlers(handlers, wrap)`
 
 对 handler 映射表中的每个 handler 施加统一的包装变换。`wrap` 回调接收 handler 的结果、token 和 helpers——返回新的
 `ResolvedResult`。
@@ -715,7 +758,7 @@ const interpret = fromHandlerMap({
 });
 ```
 
-### `debugUnhandled(format?)`
+#### `debugUnhandled(format?)`
 
 返回一个 `onUnhandled` 函数，将未处理的 token 渲染为可见占位符。适合调试、测试和 token 可视化：
 
@@ -729,7 +772,7 @@ const ruleset = createRuleset({
 });
 ```
 
-### `collectNodes(iterable)`
+#### `collectNodes(iterable)`
 
 `Array.from` 的语法糖。将惰性 `Iterable<TNode>` 收集为数组：
 
@@ -741,9 +784,9 @@ const nodes = collectNodes(interpretTokens(tokens, ruleset, env));
 
 ---
 
-## 类型定义
+### 同步类型定义
 
-### InterpretRuleset
+#### InterpretRuleset
 
 传给 `interpretTokens` 的规则集：
 
@@ -769,7 +812,7 @@ interface InterpretRuleset<TNode, TEnv = unknown> {
 | `onUnhandled` | 当 `interpret` 返回 `"unhandled"` 时的处理策略（默认：`"flatten"`） |
 | `onError`     | 可选的错误观察回调，在抛出错误前调用                                    |
 
-### InterpretResult
+#### InterpretResult
 
 `interpret` 的返回类型：
 
@@ -790,7 +833,7 @@ type InterpretResult<TNode> =
 | `"unhandled"` | 该 token 没有处理器 — 交给 `onUnhandled` 策略 |
 | `"drop"`      | 不输出任何内容                             |
 
-### ResolvedResult
+#### ResolvedResult
 
 `InterpretResult<TNode>` 去掉 `{ type: "unhandled" }`。用作 `onUnhandled` 策略函数的返回类型。
 
@@ -798,7 +841,7 @@ type InterpretResult<TNode> =
 type ResolvedResult<TNode> = Exclude<InterpretResult<TNode>, { type: "unhandled" }>;
 ```
 
-### UnhandledStrategy
+#### UnhandledStrategy
 
 控制 `interpret` 返回 `{ type: "unhandled" }` 时的行为：
 
@@ -817,7 +860,7 @@ type UnhandledStrategy<TNode, TEnv = unknown> =
 | `"drop"`    | 不输出                                                |
 | 函数          | 自定义处理 — 必须返回 `ResolvedResult`（不允许返回 `"unhandled"`） |
 
-### InterpretHelpers
+#### InterpretHelpers
 
 传给 `interpret` 和策略函数的辅助对象：
 
@@ -837,22 +880,275 @@ interface InterpretHelpers<TNode, TEnv = unknown> {
 
 ---
 
+## 异步 API
+
+异步 API 是同步核心的镜像。当你的 `interpret` 函数需要 `await` 时使用——例如拉取远程内容、查询数据库或调用异步渲染器。
+
+核心设计决策：
+
+- `createText` 是**同步的** — 文本包装始终是纯粹的、快速的操作
+- `interpret` 和 `onUnhandled` 策略函数可返回 `Awaitable<T>`（`T | Promise<T>`）
+- `interpretChildren` 返回 `AsyncIterable<TNode>` — 用 `for await` 或在 async generator 中用 `yield*` 消费
+- 结果中的 `nodes` 可以是 `Iterable<TNode>` 或 `AsyncIterable<TNode>`
+- 错误处理、递归检测和 `onError` 行为与同步 API 完全一致
+
+### 异步快速上手
+
+```ts
+import {createParser, createSimpleInlineHandlers} from "yume-dsl-rich-text";
+import {interpretTextAsync, collectNodesAsync} from "yume-dsl-token-walker";
+
+const parser = createParser({
+    handlers: createSimpleInlineHandlers(["bold"]),
+});
+
+const html = (
+    await collectNodesAsync(
+        interpretTextAsync("Hello $$bold(world)$$", parser, {
+            createText: (text) => text,
+            interpret: async (token, helpers) => {
+                if (token.type === "bold") {
+                    return {
+                        type: "nodes",
+                        nodes: (async function* () {
+                            yield "<strong>";
+                            yield* helpers.interpretChildren(token.value);
+                            yield "</strong>";
+                        })(),
+                    };
+                }
+                return {type: "unhandled"};
+            },
+        }, {}),
+    )
+).join("");
+
+// → "Hello <strong>world</strong>"
+```
+
+### 异步 API — 核心
+
+#### `interpretTextAsync(input, parser, ruleset, env)`
+
+异步便利封装，本质是 `parser.parse(input)` + `interpretTokensAsync(...)`。
+
+```ts
+async function* interpretTextAsync<TNode, TEnv>(
+    input: string,
+    parser: ParserLike,
+    ruleset: AsyncInterpretRuleset<TNode, TEnv>,
+    env: TEnv,
+): AsyncGenerator<TNode>;
+```
+
+#### `interpretTokensAsync(tokens, ruleset, env)`
+
+异步惰性遍历 `TextToken[]` 树，通过 async generator 逐个 yield `TNode`。
+
+```ts
+async function* interpretTokensAsync<TNode, TEnv>(
+    tokens: TextToken[],
+    ruleset: AsyncInterpretRuleset<TNode, TEnv>,
+    env: TEnv,
+): AsyncGenerator<TNode>;
+```
+
+- 流式输出 — 节点逐个 yield，内部不缓冲
+- 自引用安全 — 检测到 token 自引用时立即抛出
+- 同时支持同步和异步 iterable 的 `nodes` 结果
+
+### 异步 API — 辅助工具
+
+#### `fromAsyncHandlerMap(handlers)`
+
+`fromHandlerMap` 的异步版本。将 token 类型映射到异步处理函数：
+
+```ts
+import {fromAsyncHandlerMap} from "yume-dsl-token-walker";
+
+const interpret = fromAsyncHandlerMap({
+    bold: async (token, helpers) => ({
+        type: "nodes",
+        nodes: (async function* () {
+            yield "<strong>";
+            yield* helpers.interpretChildren(token.value);
+            yield "</strong>";
+        })(),
+    }),
+});
+```
+
+未匹配的 token 自动返回 `{ type: "unhandled" }`。
+
+#### `wrapAsyncHandlers(handlers, wrap)`
+
+`wrapHandlers` 的异步版本。对异步 handler 施加统一包装变换。
+`wrap` 回调接收的是 await 后的 handler 结果：
+
+```ts
+import {fromAsyncHandlerMap, wrapAsyncHandlers, type AsyncTokenHandler} from "yume-dsl-token-walker";
+
+const raw: Record<string, AsyncTokenHandler<string>> = {
+    info: async (token, h) => ({type: "nodes", nodes: (async function* () {
+        yield "[INFO] ";
+        yield* h.interpretChildren(token.value);
+    })()}),
+};
+
+const wrapped = wrapAsyncHandlers(raw, async (result, token) => {
+    if (result.type !== "nodes") return result;
+    return {type: "text", text: `<div class="${token.type}">${/* ... */}</div>`};
+});
+```
+
+#### `collectNodesAsync(iterable)`
+
+将 `AsyncIterable<TNode>` 收集为数组：
+
+```ts
+import {interpretTokensAsync, collectNodesAsync} from "yume-dsl-token-walker";
+
+const nodes = await collectNodesAsync(interpretTokensAsync(tokens, ruleset, env));
+```
+
+### 异步类型定义
+
+#### AsyncInterpretRuleset
+
+传给 `interpretTokensAsync` 的规则集：
+
+```ts
+interface AsyncInterpretRuleset<TNode, TEnv = unknown> {
+    createText: (text: string) => TNode;
+    interpret: (
+        token: TextToken,
+        helpers: AsyncInterpretHelpers<TNode, TEnv>,
+    ) => Awaitable<AsyncInterpretResult<TNode>>;
+    onUnhandled?: AsyncUnhandledStrategy<TNode, TEnv>;
+    onError?: (context: {
+        error: Error;
+        phase: "interpret" | "flatten" | "traversal" | "internal";
+        token?: TextToken;
+        position?: SourceSpan;
+        env: TEnv;
+    }) => void;
+}
+```
+
+| 字段            | 说明                                                                        |
+|---------------|---------------------------------------------------------------------------|
+| `createText`  | 将纯字符串包装为你的节点类型 — **同步**                                                  |
+| `interpret`   | 将 DSL token 映射为解释结果 — 可返回 `Promise`                                       |
+| `onUnhandled` | 当 `interpret` 返回 `"unhandled"` 时的处理策略（默认：`"flatten"`）— 可返回 `Promise`       |
+| `onError`     | 可选的错误观察回调，在抛出错误前调用                                                        |
+
+#### AsyncInterpretResult
+
+异步 `interpret` 的返回类型：
+
+```ts
+type AsyncInterpretResult<TNode> =
+    | { type: "nodes"; nodes: Iterable<TNode> | AsyncIterable<TNode> }
+    | { type: "text"; text: string }
+    | { type: "flatten" }
+    | { type: "unhandled" }
+    | { type: "drop" };
+```
+
+`"nodes"` 变体同时接受 `Iterable` 和 `AsyncIterable`，所以你可以返回普通数组或 async generator。
+
+#### AsyncResolvedResult
+
+`AsyncInterpretResult<TNode>` 去掉 `{ type: "unhandled" }`：
+
+```ts
+type AsyncResolvedResult<TNode> = Exclude<AsyncInterpretResult<TNode>, { type: "unhandled" }>;
+```
+
+#### AsyncUnhandledStrategy
+
+`UnhandledStrategy` 的异步版本 — 回调可返回 `Awaitable`：
+
+```ts
+type AsyncUnhandledStrategy<TNode, TEnv = unknown> =
+    | "throw"
+    | "flatten"
+    | "drop"
+    | ((
+          token: TextToken,
+          helpers: AsyncInterpretHelpers<TNode, TEnv>,
+      ) => Awaitable<AsyncResolvedResult<TNode>>);
+```
+
+#### AsyncInterpretHelpers
+
+传给异步 `interpret` 和策略函数的辅助对象：
+
+```ts
+interface AsyncInterpretHelpers<TNode, TEnv = unknown> {
+    interpretChildren: (value: string | TextToken[]) => AsyncIterable<TNode>;
+    flattenText: (value: string | TextToken[]) => string;
+    env: TEnv;
+}
+```
+
+| 字段                  | 说明                                            |
+|---------------------|-----------------------------------------------|
+| `interpretChildren` | 递归解释子 token — 返回 `AsyncIterable<TNode>`        |
+| `flattenText`       | 从 token value 中提取纯文本 — 与同步 API 使用同一个同步函数      |
+| `env`               | 用户提供的环境对象，从 `interpretTokensAsync` 透传          |
+
+#### `Awaitable<T>`
+
+```ts
+type Awaitable<T> = T | Promise<T>;
+```
+
+贯穿异步 API 签名，允许同步和异步返回值混用。
+
+#### AsyncTokenHandler
+
+异步 handler 函数签名的简写：
+
+```ts
+type AsyncTokenHandler<TNode, TEnv = unknown> = (
+    token: TextToken,
+    helpers: AsyncInterpretHelpers<TNode, TEnv>,
+) => Awaitable<AsyncResolvedResult<TNode>>;
+```
+
+---
+
 ## 错误处理
 
 ### onError
 
 可选的错误观察回调。在错误抛出前调用，携带上下文信息。它**不会**吞掉错误 — `onError` 返回后错误仍会被重新抛出。
 
-当上游 parser 开启源码位置追踪时，例如 `createParser({ trackPositions: true, ... })`，这里的 `position` 会透传
-自 `token.position`。
+`position` 透传自 `token.position`，需要上游 parser 开启源码位置追踪：
+`createParser({ trackPositions: true, ... })`。`SourceSpan` 包含 `start` 和 `end`，各自带有
+`offset`（从 0 开始）、`line`（从 1 开始）和 `column`（从 1 开始）。
+未开启位置追踪时 `position` 为 `undefined`。
 
 ```ts
+const parser = createParser({
+    handlers: createSimpleInlineHandlers(["bold"]),
+    trackPositions: true,  // ← 开启源码位置追踪
+});
+
 const ruleset = {
     createText: (text: string) => text,
     interpret: () => ({type: "unhandled" as const}),
     onUnhandled: "throw" as const,
     onError: ({error, phase, token, position, env}) => {
-        console.error(`[${phase}] ${error.message}`, token?.type, position?.start.offset, env);
+        if (position) {
+            console.error(
+                `[${phase}] ${error.message} at line ${position.start.line}:${position.start.column}`,
+                token?.type,
+            );
+        } else {
+            console.error(`[${phase}] ${error.message}`, token?.type);
+        }
     },
 };
 ```
