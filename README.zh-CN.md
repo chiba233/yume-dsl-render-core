@@ -11,129 +11,60 @@
 [![Contributing](https://img.shields.io/badge/贡献指南-guide-blue.svg)](./CONTRIBUTING.zh-CN.md)
 [![Security](https://img.shields.io/badge/安全策略-policy-red.svg)](./SECURITY.md)
 
-通用的、惰性的、基于 generator 的
-[`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL) token 树解释器。
+[`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL) 的操作层。
+Parser 给你树——这个包对树做事。
 
-包名叫 **token-walker** 是因为它的核心工作是逐节点*遍历* token 树。
-公开 API 叫 `interpretTokens` 是因为对调用者而言，你在*解释* token 为输出——遍历只是实现细节。
+- **[解释](#同步-api)** — 用规则集遍历 `TextToken[]` 树，yield 任意输出节点；
+  惰性 generator，同步 + 异步，递归安全
+- **[查询](#结构查询)** — [`findFirst`](#findfirstnodes-predicate) / [`findAll`](#findallnodes-predicate) /
+  [`walkStructural`](#walkstructuralnodes-visitor) / [`nodeAtOffset`](#nodeatoffsetnodes-offset) /
+  [`enclosingNode`](#enclosingnodesnodes-offset) 在 `StructuralNode[]` 树上操作
+- **[Lint](#lint)** — [`lintStructural`](#lintstructuralsource-options) 对结构树运行自定义规则，
+  上报带可选自动修复的 [`Diagnostic`](#diagnostic)；
+  [`applyLintFixes`](#applylintfixessource-diagnostics) 以原子方式应用修复
+- **[切片](#结构切片)** — [`parseSlice`](#parseslicefulltext-span-parser-tracker) 局部重解析，
+  位置自动映射，无需全文重解析
 
-你提供规则，它遍历树、yield 输出节点，然后闪开。
+**核心 API 已稳定。** 如有破坏性变更，将在主版本号升级时附带迁移说明。
 
-同时提供**同步** (`Generator`) 和**异步** (`AsyncGenerator`) 两套 API。
-异步 API 是同步核心的完整镜像——相同语义、相同错误处理、相同安全保证。
+## 生态
 
-**核心 API 已稳定。** 后续更新以向后兼容为优先；如有破坏性变更，将在主版本号升级时附带明确的迁移说明。
+```
+text ──▶ yume-dsl-rich-text (parse) ──▶ TextToken[] / StructuralNode[]
+                                              │
+                                  yume-dsl-token-walker
+                                   ├─ interpret  (TextToken[] → TNode[])
+                                   ├─ query      (StructuralNode[] 搜索)
+                                   ├─ lint       (StructuralNode[] 校验)
+                                   └─ slice      (区域重解析)
+```
 
-它刻意只消费 `TextToken[]`，不处理 structural parse node。
-如果你需要带语法感知的结构分析或高亮，请使用 `yume-dsl-rich-text` 的 `parseStructural`，或者
-[`yume-dsl-shiki-highlight`](https://github.com/chiba233/yume-dsl-shiki-highlight)。
-
-新的 parser 配置建议优先使用 `createParser(...)`。
-如果上游需要自定义定界符或转义标记，优先使用 `createEasySyntax(...)`，再把生成的 `syntax` 显式传给 parser。
+| 包                                                                                  | 职责                                          |
+|------------------------------------------------------------------------------------|---------------------------------------------|
+| [`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL)                        | 解析器 — 文本到 token 树                           |
+| **`yume-dsl-token-walker`**                                                        | 操作层 — 解释、查询、lint、切片（本包）                     |
+| [`yume-dsl-shiki-highlight`](https://github.com/chiba233/yume-dsl-shiki-highlight) | 语法高亮 — token 着色或 TextMate 语法                |
+| [`yume-dsl-markdown-it`](https://github.com/chiba233/yume-dsl-markdown-it)         | markdown-it 插件 — 在 Markdown 中嵌入 DSL 标签      |
 
 ---
 
 ## 目录
 
-- [生态](#生态)
 - [安装](#安装)
 - [快速上手](#快速上手)
 - [导出一览](#导出一览)
 - [示例](#示例)
-    - [用 env 注入运行时上下文](#用-env-注入运行时上下文)
-    - [自定义 onUnhandled](#自定义-onunhandled)
-    - [在 handler 内使用 flattenText](#在-handler-内使用-flattentext)
-    - [返回结构化节点](#返回结构化节点而不只是字符串)
-    - [完全丢弃某类 token](#完全丢弃某类-token)
 - [推荐结构](#推荐结构)
 - [完整示例](#完整示例)
 - [同步 API](#同步-api)
-    - [核心](#同步-api--核心)
-        - [interpretText](#interprettextinput-parser-ruleset-env)
-        - [interpretTokens](#interprettokenstokens-ruleset-env)
-        - [flattenText](#flattentextvalue)
-    - [辅助工具](#同步-api--辅助工具)
-        - [createRuleset](#createrulesetruleset)
-        - [fromHandlerMap](#fromhandlermaphandlers)
-        - [dropToken](#droptoken)
-        - [unwrapChildren](#unwrapchildren)
-        - [wrapHandlers](#wraphandlershandlers-wrap)
-        - [debugUnhandled](#debugunhandledformat)
-        - [collectNodes](#collectnodesiterable)
-    - [类型定义](#同步类型定义)
-        - [InterpretRuleset](#interpretruleset)
-        - [InterpretResult](#interpretresult)
-        - [ResolvedResult](#resolvedresult)
-        - [UnhandledStrategy](#unhandledstrategy)
-        - [InterpretHelpers](#interprethelpers)
 - [异步 API](#异步-api)
-    - [核心](#异步-api--核心)
-        - [interpretTextAsync](#interprettextasyncinput-parser-ruleset-env)
-        - [interpretTokensAsync](#interprettokensasynctokens-ruleset-env)
-    - [辅助工具](#异步-api--辅助工具)
-        - [fromAsyncHandlerMap](#fromasynchandlermaphandlers)
-        - [wrapAsyncHandlers](#wrapasynchandlershandlers-wrap)
-        - [collectNodesAsync](#collectnodesasynciterable)
-    - [类型定义](#异步类型定义)
-        - [AsyncInterpretRuleset](#asyncinterpretruleset)
-        - [AsyncInterpretResult](#asyncinterpretresult)
-        - [AsyncResolvedResult](#asyncresolvedresult)
-        - [AsyncUnhandledStrategy](#asyncunhandledstrategy)
-        - [AsyncInterpretHelpers](#asyncinterprethelpers)
-        - [Awaitable](#awaitablet)
-        - [AsyncTokenHandler](#asynctokenhandler)
 - [结构查询](#结构查询)
-    - [findFirst](#findfirstnodes-predicate)
-    - [findAll](#findallnodes-predicate)
-    - [walkStructural](#walkstructuralnodes-visitor)
-    - [nodeAtOffset](#nodeatoffsetnodes-offset)
-    - [enclosingNode](#enclosingnodesnodes-offset)
-    - [StructuralVisitContext](#structuralvisitcontext)
-    - [StructuralPredicate](#structuralpredicate)
-    - [StructuralVisitor](#structuralvisitor)
 - [Lint](#lint)
-    - [lintStructural](#lintstructuralsource-options)
-    - [applyLintFixes](#applylintfixessource-diagnostics)
-    - [LintRule](#lintrule)
-    - [LintContext](#lintcontext)
-    - [LintOptions](#lintoptions)
-    - [Diagnostic](#diagnostic)
-    - [DiagnosticSeverity](#diagnosticseverity)
-    - [Fix / TextEdit](#fix--textedit)
-    - [ReportInfo](#reportinfo)
 - [结构切片](#结构切片)
-    - [parseSlice](#parseslicefulltext-span-parser-tracker)
-    - [ParseOverrides](#parseoverrides)
-    - [ParserLike](#parserlike)
 - [错误处理](#错误处理)
-    - [onError](#onerror)
-    - [错误阶段](#错误阶段)
-    - [记录错误但不阻止传播](#记录错误但不阻止传播)
 - [安全性](#安全性)
 - [更新日志](#更新日志)
 - [许可证](#许可证)
-
----
-
-## 生态
-
-```
-text ──▶ yume-dsl-rich-text (parse) ──▶ TextToken[] ──▶ yume-dsl-token-walker (interpret) ──▶ TNode[]
-```
-
-| 包                                                                                  | 角色                                   |
-|------------------------------------------------------------------------------------|--------------------------------------|
-| [`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL)                        | 解析器 — 文本到 token 树                    |
-| **`yume-dsl-token-walker`**                                                        | 解释器 — token 树到输出节点（本包）               |
-| [`yume-dsl-shiki-highlight`](https://github.com/chiba233/yume-dsl-shiki-highlight) | 语法高亮 — 彩色 token 或 TextMate 语法        |
-| [`yume-dsl-markdown-it`](https://github.com/chiba233/yume-dsl-markdown-it)         | markdown-it 插件 — Markdown 中渲染 DSL 标签 |
-
-边界说明：
-
-- 推荐的上游路径是 `createParser(...).parse(...)`。
-- 如果你要自定义定界符，优先使用 `createEasySyntax(...)` + `createParser({ syntax, ... })`。
-- `yume-dsl-token-walker` 也能消费旧的 `parseRichText(...)` 输出，因为它的边界始终是 `TextToken[]`。
-- `parseStructural(...)` 和 `createParser(...).structural(...)` 属于语法分析 / 高亮路径，不属于 walker 输入。
 
 ---
 

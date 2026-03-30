@@ -11,133 +11,60 @@
 [![Contributing](https://img.shields.io/badge/Contributing-guide-blue.svg)](./CONTRIBUTING.md)
 [![Security](https://img.shields.io/badge/Security-policy-red.svg)](./SECURITY.md)
 
-A generic, lazy, generator-based token tree interpreter for
-[`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL).
+The operation layer for [`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL).
+Parser gives you trees — this package does things with them.
 
-The package is named **token-walker** because its core job is to *walk* a token tree node by node.
-The public API is called `interpretTokens` because from the caller's perspective, you are *interpreting* tokens into
-output — the walking is an implementation detail.
+- **[Interpret](#synchronous-api)** — walk `TextToken[]` trees with a ruleset, yield arbitrary output nodes;
+  lazy generators, sync + async, recursion-safe
+- **[Query](#structural-query)** — [`findFirst`](#findfirstnodes-predicate) / [`findAll`](#findallnodes-predicate) /
+  [`walkStructural`](#walkstructuralnodes-visitor) / [`nodeAtOffset`](#nodeatoffsetnodes-offset) /
+  [`enclosingNode`](#enclosingnodesnodes-offset) on `StructuralNode[]` trees
+- **[Lint](#lint)** — [`lintStructural`](#lintstructuralsource-options) runs custom rules against the structural tree,
+  reports [`Diagnostic`](#diagnostic)s with optional auto-fix;
+  [`applyLintFixes`](#applylintfixessource-diagnostics) applies them atomically
+- **[Slice](#structural-slice)** — [`parseSlice`](#parseslicefulltext-span-parser-tracker) re-parses a region
+  with correct position mapping, no full-document re-parse
 
-You provide rules. It walks the tree, yields output nodes, and gets out of the way.
-
-Both **synchronous** (`Generator`) and **asynchronous** (`AsyncGenerator`) APIs are provided.
-The async API is a full mirror of the sync core — same semantics, same error handling, same safety guarantees.
-
-**Core API is stable.** Future updates will prioritize backward compatibility; breaking changes, if any, will land in
-major versions with explicit migration notes.
-
-It intentionally consumes `TextToken[]`, not structural parse nodes.
-If you need syntax-aware analysis or highlighting, use `parseStructural` from `yume-dsl-rich-text` or
-[`yume-dsl-shiki-highlight`](https://github.com/chiba233/yume-dsl-shiki-highlight).
-
-For new parser setup, prefer `createParser(...)`.
-If you need custom delimiters or a custom escape marker upstream, prefer `createEasySyntax(...)` and pass the resulting
-`syntax` explicitly into the parser.
-
----
-
-## Table of Contents
-
-- [Ecosystem](#ecosystem)
-- [Install](#install)
-- [Quick Start](#quick-start)
-- [Exports](#exports)
-- [Examples](#examples)
-    - [Use env to inject runtime context](#use-env-to-inject-runtime-context)
-    - [Customize onUnhandled](#customize-onunhandled)
-    - [Use flattenText inside a handler](#use-flattentext-inside-a-handler)
-    - [Return structured nodes](#return-structured-nodes-instead-of-strings)
-    - [Drop a token entirely](#drop-a-token-entirely)
-- [Recommended Structure](#recommended-structure)
-- [Real-world Example](#real-world-example)
-- [Synchronous API](#synchronous-api)
-    - [Core](#sync-api--core)
-        - [interpretText](#interprettextinput-parser-ruleset-env)
-        - [interpretTokens](#interprettokenstokens-ruleset-env)
-        - [flattenText](#flattentextvalue)
-    - [Helpers](#sync-api--helpers)
-        - [createRuleset](#createrulesetruleset)
-        - [fromHandlerMap](#fromhandlermaphandlers)
-        - [dropToken](#droptoken)
-        - [unwrapChildren](#unwrapchildren)
-        - [wrapHandlers](#wraphandlershandlers-wrap)
-        - [debugUnhandled](#debugunhandledformat)
-        - [collectNodes](#collectnodesiterable)
-    - [Types](#sync-types)
-        - [InterpretRuleset](#interpretruleset)
-        - [InterpretResult](#interpretresult)
-        - [ResolvedResult](#resolvedresult)
-        - [UnhandledStrategy](#unhandledstrategy)
-        - [InterpretHelpers](#interprethelpers)
-- [Asynchronous API](#asynchronous-api)
-    - [Core](#async-api--core)
-        - [interpretTextAsync](#interprettextasyncinput-parser-ruleset-env)
-        - [interpretTokensAsync](#interprettokensasynctokens-ruleset-env)
-    - [Helpers](#async-api--helpers)
-        - [fromAsyncHandlerMap](#fromasynchandlermaphandlers)
-        - [wrapAsyncHandlers](#wrapasynchandlershandlers-wrap)
-        - [collectNodesAsync](#collectnodesasynciterable)
-    - [Types](#async-types)
-        - [AsyncInterpretRuleset](#asyncinterpretruleset)
-        - [AsyncInterpretResult](#asyncinterpretresult)
-        - [AsyncResolvedResult](#asyncresolvedresult)
-        - [AsyncUnhandledStrategy](#asyncunhandledstrategy)
-        - [AsyncInterpretHelpers](#asyncinterprethelpers)
-        - [Awaitable](#awaitablet)
-        - [AsyncTokenHandler](#asynctokenhandler)
-- [Structural Query](#structural-query)
-    - [findFirst](#findfirstnodes-predicate)
-    - [findAll](#findallnodes-predicate)
-    - [walkStructural](#walkstructuralnodes-visitor)
-    - [nodeAtOffset](#nodeatoffsetnodes-offset)
-    - [enclosingNode](#enclosingnodesnodes-offset)
-    - [StructuralVisitContext](#structuralvisitcontext)
-    - [StructuralPredicate](#structuralpredicate)
-    - [StructuralVisitor](#structuralvisitor)
-- [Lint](#lint)
-    - [lintStructural](#lintstructuralsource-options)
-    - [applyLintFixes](#applylintfixessource-diagnostics)
-    - [LintRule](#lintrule)
-    - [LintContext](#lintcontext)
-    - [LintOptions](#lintoptions)
-    - [Diagnostic](#diagnostic)
-    - [DiagnosticSeverity](#diagnosticseverity)
-    - [Fix / TextEdit](#fix--textedit)
-    - [ReportInfo](#reportinfo)
-- [Structural Slice](#structural-slice)
-    - [parseSlice](#parseslicefulltext-span-parser-tracker)
-    - [ParseOverrides](#parseoverrides)
-    - [ParserLike](#parserlike)
-- [Error Handling](#error-handling)
-    - [onError](#onerror)
-    - [Error phases](#error-phases)
-    - [Logging errors without stopping iteration](#logging-errors-without-stopping-iteration)
-- [Safety](#safety)
-- [Changelog](#changelog)
-- [License](#license)
-
----
+**Core API is stable.** Breaking changes, if any, land in major versions with migration notes.
 
 ## Ecosystem
 
 ```
-text ──▶ yume-dsl-rich-text (parse) ──▶ TextToken[] ──▶ yume-dsl-token-walker (interpret) ──▶ TNode[]
+text ──▶ yume-dsl-rich-text (parse) ──▶ TextToken[] / StructuralNode[]
+                                              │
+                                  yume-dsl-token-walker
+                                   ├─ interpret  (TextToken[] → TNode[])
+                                   ├─ query      (StructuralNode[] search)
+                                   ├─ lint       (StructuralNode[] validation)
+                                   └─ slice      (region re-parse)
 ```
 
 | Package                                                                            | Role                                                    |
 |------------------------------------------------------------------------------------|---------------------------------------------------------|
 | [`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL)                        | Parser — text to token tree                             |
-| **`yume-dsl-token-walker`**                                                        | Interpreter — token tree to output nodes (this package) |
+| **`yume-dsl-token-walker`**                                                        | Operations — interpret, query, lint, slice (this package)|
 | [`yume-dsl-shiki-highlight`](https://github.com/chiba233/yume-dsl-shiki-highlight) | Syntax highlighting — tokens or TextMate grammar        |
 | [`yume-dsl-markdown-it`](https://github.com/chiba233/yume-dsl-markdown-it)         | markdown-it plugin — DSL tags inside Markdown           |
 
-Boundary notes:
+---
 
-- Recommended upstream path: `createParser(...).parse(...)`.
-- If you customize delimiters upstream, prefer `createEasySyntax(...)` + `createParser({ syntax, ... })`.
-- `yume-dsl-token-walker` also accepts legacy `parseRichText(...)` output because the boundary is still `TextToken[]`.
-- `parseStructural(...)` and `createParser(...).structural(...)` belong to syntax analysis / highlighting, not walker
-  input.
+## Table of Contents
+
+- [Install](#install)
+- [Quick Start](#quick-start)
+- [Exports](#exports)
+- [Examples](#examples)
+- [Recommended Structure](#recommended-structure)
+- [Real-world Example](#real-world-example)
+- [Synchronous API](#synchronous-api)
+- [Asynchronous API](#asynchronous-api)
+- [Structural Query](#structural-query)
+- [Lint](#lint)
+- [Structural Slice](#structural-slice)
+- [Error Handling](#error-handling)
+- [Safety](#safety)
+- [Changelog](#changelog)
+- [License](#license)
 
 ---
 
