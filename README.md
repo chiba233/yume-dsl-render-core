@@ -110,8 +110,18 @@ const html = Array.from(
 ```
 
 For direct `TextToken[]` input, use `interpretTokens(...)`.
-`parser.structural(...)` is a different layer and is not consumed by this package.
 If you do not need custom syntax, omit `syntax` and use plain `createParser(...)`.
+
+---
+
+## Where to start
+
+| You want to…                                      | Read                                        |
+|---------------------------------------------------|---------------------------------------------|
+| Turn `TextToken[]` into HTML / VNodes / strings   | [Synchronous API](#synchronous-api) or [Async API](#asynchronous-api) |
+| Search / locate nodes in a `StructuralNode[]` tree | [Structural Query](#structural-query)       |
+| Validate DSL source with custom rules + auto-fix  | [Lint](#lint)                                |
+| Re-parse a region without full-document re-parse  | [Structural Slice](#structural-slice)        |
 
 ---
 
