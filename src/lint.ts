@@ -190,8 +190,13 @@ export const applyLintFixes = (source: string, diagnostics: Diagnostic[]): strin
 
   if (tagged.length === 0) return source;
 
-  // Sort edits by start offset ascending.
-  tagged.sort((a, b) => a.edit.span.start.offset - b.edit.span.start.offset);
+  // Sort edits by start offset ascending, then by end offset descending
+  // so that wider edits win when two fixes start at the same position.
+  tagged.sort((a, b) => {
+    const s = a.edit.span.start.offset - b.edit.span.start.offset;
+    if (s !== 0) return s;
+    return b.edit.span.end.offset - a.edit.span.end.offset;
+  });
 
   // Determine which fixes to reject due to cross-fix overlap.
   // Strategy: first-wins — the fix whose edit appears earlier in source order
