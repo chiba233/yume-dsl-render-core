@@ -5,11 +5,24 @@
 - New structural query utilities for `StructuralNode[]` trees:
   - `findFirst(nodes, predicate)` — depth-first pre-order search, returns first match
   - `findAll(nodes, predicate)` — depth-first pre-order search, returns all matches
+  - `walkStructural(nodes, visitor)` — depth-first pre-order traversal, visit every node with context
   - `nodeAtOffset(nodes, offset)` — find deepest node at a source offset (requires `trackPositions`)
   - `enclosingNode(nodes, offset)` — find deepest enclosing tag node at a source offset (requires `trackPositions`)
   - `StructuralTagNode` type — narrowed union of inline / raw / block node types;
     `enclosingNode` returns `StructuralTagNode | undefined` so callers can access `.tag` without extra type guards
-  - `StructuralVisitContext` / `StructuralPredicate` types
+  - `StructuralVisitContext` / `StructuralPredicate` / `StructuralVisitor` types
+  - Internal: `findFirst`, `findAll`, and `walkStructural` share a single DFS engine with early-exit support
+- New lint framework:
+  - `lintStructural(source, options)` — run rules against the structural parse tree, returns sorted `Diagnostic[]`
+  - `applyLintFixes(source, diagnostics)` — apply fixable diagnostics to source text with atomic
+    all-or-nothing per-fix semantics (first-wins conflict strategy; malformed fixes with internal
+    overlapping edits are rejected)
+  - `LintRule` interface with `id`, `severity?`, `check(ctx)`
+  - `LintContext` provides `source`, `tree`, `report()`, `findFirst`, `findAll`, `walk`
+  - `LintOptions` accepts `parseOptions` (forwarded to `parseStructural` — pass the same `handlers`,
+    `allowForms`, `syntax`, `tagName`, `depthLimit` as your runtime parser), `overrides`, `onRuleError`
+  - Rule error isolation — rules that throw are caught, reported via `onRuleError`, remaining rules continue
+  - Types: `Diagnostic`, `DiagnosticSeverity`, `Fix`, `TextEdit`, `ReportInfo`
 
 ### 1.0.3
 

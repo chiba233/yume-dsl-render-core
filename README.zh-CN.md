@@ -85,10 +85,22 @@
 - [结构查询](#结构查询)
     - [findFirst](#findfirstnodes-predicate)
     - [findAll](#findallnodes-predicate)
+    - [walkStructural](#walkstructuralnodes-visitor)
     - [nodeAtOffset](#nodeatoffsetnodes-offset)
     - [enclosingNode](#enclosingnodesnodes-offset)
     - [StructuralVisitContext](#structuralvisitcontext)
     - [StructuralPredicate](#structuralpredicate)
+    - [StructuralVisitor](#structuralvisitor)
+- [Lint](#lint)
+    - [lintStructural](#lintstructuralsource-options)
+    - [applyLintFixes](#applylintfixessource-diagnostics)
+    - [LintRule](#lintrule)
+    - [LintContext](#lintcontext)
+    - [LintOptions](#lintoptions)
+    - [Diagnostic](#diagnostic)
+    - [DiagnosticSeverity](#diagnosticseverity)
+    - [Fix / TextEdit](#fix--textedit)
+    - [ReportInfo](#reportinfo)
 - [结构切片](#结构切片)
     - [parseSlice](#parseslicefulltext-span-parser-tracker)
     - [ParseOverrides](#parseoverrides)
@@ -203,11 +215,28 @@ const html = Array.from(
 |--------------------------|----|----------------------------------------------------------------------------|
 | `findFirst`              | 函数 | 深度优先先序搜索 — 返回第一个匹配的 `StructuralNode`                                       |
 | `findAll`                | 函数 | 深度优先先序搜索 — 返回所有匹配的 `StructuralNode`                                        |
+| `walkStructural`         | 函数 | 深度优先先序遍历 — 带上下文访问每个节点                                                      |
 | `nodeAtOffset`           | 函数 | 按源码偏移查找最深节点（需 `trackPositions`）                                            |
 | `enclosingNode`          | 函数 | 按源码偏移查找最深的 tag 节点（需 `trackPositions`）                                      |
 | `StructuralTagNode`      | 类型 | Tag 形式节点：`Extract<StructuralNode, { type: "inline" \| "raw" \| "block" }>` |
-| `StructuralVisitContext` | 类型 | 传给谓词的上下文 — `parent`、`depth`、`index`                                        |
+| `StructuralVisitContext` | 类型 | 传给回调的上下文 — `parent`、`depth`、`index`                                        |
 | `StructuralPredicate`    | 类型 | `findFirst` / `findAll` 的谓词函数签名                                            |
+| `StructuralVisitor`      | 类型 | `walkStructural` 的访问者函数签名                                                  |
+
+**Lint**
+
+| 导出                   | 类别 | 说明                                                                         |
+|----------------------|----|----------------------------------------------------------------------------|
+| `lintStructural`     | 函数 | 对 DSL 源码运行 lint 规则 — 返回按偏移排序的 `Diagnostic[]`                               |
+| `applyLintFixes`     | 函数 | 将可修复的诊断应用到源码 — 返回新字符串                                                      |
+| `LintRule`           | 类型 | 规则接口 — `id`、`severity?`、`check(ctx)`                                       |
+| `LintContext`        | 类型 | 传给规则 `check` 的上下文 — `source`、`tree`、`report`、`findFirst`、`findAll`、`walk`  |
+| `LintOptions`        | 类型 | `lintStructural` 的选项 — `rules`、`overrides?`、`parseOptions?`、`onRuleError?` |
+| `Diagnostic`         | 类型 | 诊断结果 — `ruleId`、`severity`、`message`、`span`、`node?`、`fix?`                 |
+| `DiagnosticSeverity` | 类型 | `"error" \| "warning" \| "info" \| "hint"`                                 |
+| `Fix`                | 类型 | 自动修复 — `description`、`edits: TextEdit[]`                                   |
+| `TextEdit`           | 类型 | 源码编辑 — `span: SourceSpan`、`newText: string`                                |
+| `ReportInfo`         | 类型 | `ctx.report()` 的参数 — `Diagnostic` 去掉 `ruleId`，`severity` 可选                |
 
 **结构切片**
 
@@ -1241,9 +1270,35 @@ const tag = enclosingNode(tree, 14); // 偏移量 14 在 "world" 内部
 > **偏移量语义：** offset 必须是传给 `parseStructural` 的**原始源码文本**的字符串索引，
 > 而不是渲染后、打印后或展示文本中的索引。此约定同样适用于 `nodeAtOffset`。
 
+### `walkStructural(nodes, visitor)`
+
+深度优先先序遍历。对每个节点调用 `visitor`，提供完整上下文。
+与 `findFirst`/`findAll` 不同，这是一个纯副作用访问器——不收集也不返回任何值。
+
+```ts
+const walkStructural: (
+    nodes: StructuralNode[],
+    visitor: StructuralVisitor,
+) => void;
+```
+
+```ts
+import {parseStructural} from "yume-dsl-rich-text";
+import {walkStructural} from "yume-dsl-token-walker";
+
+const tree = parseStructural("$$bold(hello $$italic(world)$$)$$");
+walkStructural(tree, (node, ctx) => {
+    console.log(`${"  ".repeat(ctx.depth)}${node.type}`);
+});
+// inline
+//   text
+//   inline
+//     text
+```
+
 ### StructuralVisitContext
 
-传给 `findFirst` 和 `findAll` 谓词的上下文：
+传给回调的上下文：
 
 ```ts
 interface StructuralVisitContext {
@@ -1268,6 +1323,185 @@ type StructuralPredicate = (
     node: StructuralNode,
     ctx: StructuralVisitContext,
 ) => boolean;
+```
+
+### StructuralVisitor
+
+`walkStructural` 和 `LintContext.walk` 使用的访问者函数签名：
+
+```ts
+type StructuralVisitor = (
+    node: StructuralNode,
+    ctx: StructuralVisitContext,
+) => void;
+```
+
+---
+
+## Lint
+
+面向 DSL 源码的最小 lint 框架。规则在结构解析树上运行，上报诊断结果并支持可选的自动修复。
+
+### 快速上手
+
+```ts
+import {lintStructural, applyLintFixes, type LintRule} from "yume-dsl-token-walker";
+
+const noEmptyTag: LintRule = {
+    id: "no-empty-tag",
+    severity: "warning",
+    check: (ctx) => {
+        ctx.findAll(ctx.tree, (node) => {
+            if (node.type === "inline" && node.children.length === 0 && node.position) {
+                ctx.report({
+                    message: `空的 inline 标签: ${node.tag}`,
+                    span: node.position,
+                    node,
+                    fix: {
+                        description: "删除空标签",
+                        edits: [{span: node.position, newText: ""}],
+                    },
+                });
+            }
+            return false;
+        });
+    },
+};
+
+const source = "Hello $$bold()$$ world";
+const diagnostics = lintStructural(source, {rules: [noEmptyTag]});
+// diagnostics[0].message === "空的 inline 标签: bold"
+
+const fixed = applyLintFixes(source, diagnostics);
+// fixed === "Hello  world"
+```
+
+### `lintStructural(source, options)`
+
+对 DSL 源码运行 lint 规则。以 `trackPositions: true` 解析源码，
+然后运行每个规则的 `check` 函数。返回按源码偏移排序的诊断列表。
+
+```ts
+const lintStructural: (source: string, options: LintOptions) => Diagnostic[];
+```
+
+抛异常的规则会被隔离——错误通过 `onRuleError` 上报，其余规则继续运行。
+
+### `applyLintFixes(source, diagnostics)`
+
+将可修复的诊断应用到源码，产出新字符串。
+
+```ts
+const applyLintFixes: (source: string, diagnostics: Diagnostic[]) => string;
+```
+
+只处理带 `fix` 字段的诊断。修复以**原子方式**应用——
+如果某个 fix 中的任一 edit 与之前已接受的 edit 重叠，则**整个 fix** 被跳过
+（每个 fix 要么全部应用，要么全部丢弃）。这防止复合修复将源码留在无效的中间状态。
+
+### LintRule
+
+```ts
+interface LintRule {
+    id: string;
+    severity?: DiagnosticSeverity;
+    check: (ctx: LintContext) => void;
+}
+```
+
+| 字段         | 说明                                     |
+|------------|----------------------------------------|
+| `id`       | 唯一规则标识符（如 `"no-empty-tag"`）            |
+| `severity` | 默认严重程度——可通过 `LintOptions.overrides` 覆盖 |
+| `check`    | 规则实现——用 `ctx.report()` 发出诊断            |
+
+### LintContext
+
+传给每个规则 `check` 函数的上下文：
+
+```ts
+interface LintContext {
+    source: string;
+    tree: StructuralNode[];
+    report: (info: ReportInfo) => void;
+    findFirst: (nodes: StructuralNode[], predicate: StructuralPredicate) => StructuralNode | undefined;
+    findAll: (nodes: StructuralNode[], predicate: StructuralPredicate) => StructuralNode[];
+    walk: (nodes: StructuralNode[], visitor: StructuralVisitor) => void;
+}
+```
+
+| 字段          | 说明                               |
+|-------------|----------------------------------|
+| `source`    | 原始源码文本                           |
+| `tree`      | 结构树（以 `trackPositions: true` 解析） |
+| `report`    | 发出诊断                             |
+| `findFirst` | 深度优先搜索 — 第一个匹配                   |
+| `findAll`   | 深度优先搜索 — 所有匹配                    |
+| `walk`      | 深度优先遍历 — 带上下文访问每个节点              |
+
+### LintOptions
+
+```ts
+interface LintOptions {
+    rules: LintRule[];
+    overrides?: Record<string, DiagnosticSeverity | "off">;
+    parseOptions?: Omit<StructuralParseOptions, "trackPositions">;
+    onRuleError?: (context: { ruleId: string; error: unknown }) => void;
+}
+```
+
+| 字段             | 说明                                                                                               |
+|----------------|--------------------------------------------------------------------------------------------------|
+| `rules`        | 要运行的规则                                                                                           |
+| `overrides`    | 按规则 id 覆盖严重程度——设为 `"off"` 可禁用                                                                    |
+| `parseOptions` | 透传给 `parseStructural`——传入与运行时 parser 相同的 `handlers`、`allowForms`、`syntax`、`tagName`、`depthLimit` |
+| `onRuleError`  | 规则抛异常时调用——错误被吞掉，其余规则继续                                                                           |
+
+### Diagnostic
+
+```ts
+interface Diagnostic {
+    ruleId: string;
+    severity: DiagnosticSeverity;
+    message: string;
+    span: SourceSpan;
+    node?: StructuralNode;
+    fix?: Fix;
+}
+```
+
+### DiagnosticSeverity
+
+```ts
+type DiagnosticSeverity = "error" | "warning" | "info" | "hint";
+```
+
+### Fix / TextEdit
+
+```ts
+interface Fix {
+    description: string;
+    edits: TextEdit[];
+}
+
+interface TextEdit {
+    span: SourceSpan;
+    newText: string;
+}
+```
+
+Fix 遵循 LSP `TextEdit` 模型——每个 edit 指定要替换的源码范围。
+用空 `newText` 删除，或用 `start === end` 的范围插入。
+
+### ReportInfo
+
+`ctx.report()` 的参数——与 `Diagnostic` 相同，但去掉 `ruleId`（由 runner 添加），
+`severity` 可选（默认使用规则的 severity）：
+
+```ts
+type ReportInfo = Omit<Diagnostic, "ruleId" | "severity"> & {
+    severity?: DiagnosticSeverity;
+};
 ```
 
 ---

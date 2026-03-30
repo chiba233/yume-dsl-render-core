@@ -88,10 +88,22 @@ If you need custom delimiters or a custom escape marker upstream, prefer `create
 - [Structural Query](#structural-query)
     - [findFirst](#findfirstnodes-predicate)
     - [findAll](#findallnodes-predicate)
+    - [walkStructural](#walkstructuralnodes-visitor)
     - [nodeAtOffset](#nodeatoffsetnodes-offset)
     - [enclosingNode](#enclosingnodesnodes-offset)
     - [StructuralVisitContext](#structuralvisitcontext)
     - [StructuralPredicate](#structuralpredicate)
+    - [StructuralVisitor](#structuralvisitor)
+- [Lint](#lint)
+    - [lintStructural](#lintstructuralsource-options)
+    - [applyLintFixes](#applylintfixessource-diagnostics)
+    - [LintRule](#lintrule)
+    - [LintContext](#lintcontext)
+    - [LintOptions](#lintoptions)
+    - [Diagnostic](#diagnostic)
+    - [DiagnosticSeverity](#diagnosticseverity)
+    - [Fix / TextEdit](#fix--textedit)
+    - [ReportInfo](#reportinfo)
 - [Structural Slice](#structural-slice)
     - [parseSlice](#parseslicefulltext-span-parser-tracker)
     - [ParseOverrides](#parseoverrides)
@@ -205,15 +217,32 @@ All public exports at a glance:
 
 **Structural query**
 
-| Export                  | Kind     | Description                                                              |
-|-------------------------|----------|--------------------------------------------------------------------------|
-| `findFirst`             | function | Depth-first pre-order search — first matching `StructuralNode`           |
-| `findAll`               | function | Depth-first pre-order search — all matching `StructuralNode`s            |
-| `nodeAtOffset`          | function | Find deepest node at a source byte offset (requires `trackPositions`)    |
-| `enclosingNode`         | function | Find deepest tag node enclosing a source offset (requires `trackPositions`) |
-| `StructuralTagNode`     | type     | Tag-form node: `Extract<StructuralNode, { type: "inline" \| "raw" \| "block" }>` |
-| `StructuralVisitContext`| type     | Context passed to predicates — `parent`, `depth`, `index`                |
-| `StructuralPredicate`   | type     | Predicate function signature for `findFirst` / `findAll`                 |
+| Export                   | Kind     | Description                                                                      |
+|--------------------------|----------|----------------------------------------------------------------------------------|
+| `findFirst`              | function | Depth-first pre-order search — first matching `StructuralNode`                   |
+| `findAll`                | function | Depth-first pre-order search — all matching `StructuralNode`s                    |
+| `walkStructural`         | function | Depth-first pre-order traversal — visit every node with context                  |
+| `nodeAtOffset`           | function | Find deepest node at a source offset (requires `trackPositions`)                 |
+| `enclosingNode`          | function | Find deepest tag node enclosing a source offset (requires `trackPositions`)      |
+| `StructuralTagNode`      | type     | Tag-form node: `Extract<StructuralNode, { type: "inline" \| "raw" \| "block" }>` |
+| `StructuralVisitContext` | type     | Context passed to callbacks — `parent`, `depth`, `index`                         |
+| `StructuralPredicate`    | type     | Predicate function signature for `findFirst` / `findAll`                         |
+| `StructuralVisitor`      | type     | Visitor function signature for `walkStructural`                                  |
+
+**Lint**
+
+| Export               | Kind     | Description                                                                                 |
+|----------------------|----------|---------------------------------------------------------------------------------------------|
+| `lintStructural`     | function | Run lint rules against DSL source — returns sorted `Diagnostic[]`                           |
+| `applyLintFixes`     | function | Apply fixable diagnostics to source text — returns new string                               |
+| `LintRule`           | type     | Rule interface — `id`, `severity?`, `check(ctx)`                                            |
+| `LintContext`        | type     | Context passed to rule `check` — `source`, `tree`, `report`, `findFirst`, `findAll`, `walk` |
+| `LintOptions`        | type     | Options for `lintStructural` — `rules`, `overrides?`, `parseOptions?`, `onRuleError?`       |
+| `Diagnostic`         | type     | Lint diagnostic — `ruleId`, `severity`, `message`, `span`, `node?`, `fix?`                  |
+| `DiagnosticSeverity` | type     | `"error" \| "warning" \| "info" \| "hint"`                                                  |
+| `Fix`                | type     | Auto-fix — `description`, `edits: TextEdit[]`                                               |
+| `TextEdit`           | type     | Source edit — `span: SourceSpan`, `newText: string`                                         |
+| `ReportInfo`         | type     | Argument to `ctx.report()` — `Diagnostic` minus `ruleId`, severity optional                 |
 
 **Structural slice**
 
@@ -1266,11 +1295,37 @@ interface StructuralVisitContext {
 }
 ```
 
-| Field    | Description                                       |
-|----------|---------------------------------------------------|
-| `parent` | The parent node, or `null` for top-level nodes    |
-| `depth`  | Nesting depth (0 for top-level)                   |
-| `index`  | Index within the parent's child array              |
+| Field    | Description                                    |
+|----------|------------------------------------------------|
+| `parent` | The parent node, or `null` for top-level nodes |
+| `depth`  | Nesting depth (0 for top-level)                |
+| `index`  | Index within the parent's child array          |
+
+### `walkStructural(nodes, visitor)`
+
+Depth-first pre-order traversal. Calls `visitor` for every node with full context.
+Unlike `findFirst`/`findAll`, this is a pure side-effect visitor — it does not collect or return anything.
+
+```ts
+const walkStructural: (
+    nodes: StructuralNode[],
+    visitor: StructuralVisitor,
+) => void;
+```
+
+```ts
+import {parseStructural} from "yume-dsl-rich-text";
+import {walkStructural} from "yume-dsl-token-walker";
+
+const tree = parseStructural("$$bold(hello $$italic(world)$$)$$");
+walkStructural(tree, (node, ctx) => {
+    console.log(`${"  ".repeat(ctx.depth)}${node.type}`);
+});
+// inline
+//   text
+//   inline
+//     text
+```
 
 ### StructuralPredicate
 
@@ -1281,6 +1336,187 @@ type StructuralPredicate = (
     node: StructuralNode,
     ctx: StructuralVisitContext,
 ) => boolean;
+```
+
+### StructuralVisitor
+
+Visitor function signature used by `walkStructural` and `LintContext.walk`:
+
+```ts
+type StructuralVisitor = (
+    node: StructuralNode,
+    ctx: StructuralVisitContext,
+) => void;
+```
+
+---
+
+## Lint
+
+A minimal lint framework for validating DSL source against custom rules. Rules operate on the
+structural parse tree and report diagnostics with optional auto-fixes.
+
+### Quick Start
+
+```ts
+import {lintStructural, applyLintFixes, type LintRule} from "yume-dsl-token-walker";
+
+const noEmptyTag: LintRule = {
+    id: "no-empty-tag",
+    severity: "warning",
+    check: (ctx) => {
+        ctx.findAll(ctx.tree, (node) => {
+            if (node.type === "inline" && node.children.length === 0 && node.position) {
+                ctx.report({
+                    message: `Empty inline tag: ${node.tag}`,
+                    span: node.position,
+                    node,
+                    fix: {
+                        description: "Remove empty tag",
+                        edits: [{span: node.position, newText: ""}],
+                    },
+                });
+            }
+            return false;
+        });
+    },
+};
+
+const source = "Hello $$bold()$$ world";
+const diagnostics = lintStructural(source, {rules: [noEmptyTag]});
+// diagnostics[0].message === "Empty inline tag: bold"
+
+const fixed = applyLintFixes(source, diagnostics);
+// fixed === "Hello  world"
+```
+
+### `lintStructural(source, options)`
+
+Run lint rules against DSL source text. Parses the source with `trackPositions: true`,
+then runs each rule's `check` function. Returns all collected diagnostics sorted by source offset.
+
+```ts
+const lintStructural: (source: string, options: LintOptions) => Diagnostic[];
+```
+
+Rules that throw are isolated — the error is reported via `onRuleError` and remaining rules continue.
+
+### `applyLintFixes(source, diagnostics)`
+
+Apply fixable diagnostics to source text, producing a new string.
+
+```ts
+const applyLintFixes: (source: string, diagnostics: Diagnostic[]) => string;
+```
+
+Only diagnostics with a `fix` field are considered. Fixes are applied **atomically** —
+if any edit within a fix overlaps with a previously accepted edit, the **entire fix** is skipped
+(all-or-nothing per fix). This prevents compound fixes from leaving the source in an invalid
+intermediate state.
+
+### LintRule
+
+```ts
+interface LintRule {
+    id: string;
+    severity?: DiagnosticSeverity;
+    check: (ctx: LintContext) => void;
+}
+```
+
+| Field      | Description                                                      |
+|------------|------------------------------------------------------------------|
+| `id`       | Unique rule identifier (e.g. `"no-empty-tag"`)                   |
+| `severity` | Default severity — can be overridden via `LintOptions.overrides` |
+| `check`    | Rule implementation — use `ctx.report()` to emit diagnostics     |
+
+### LintContext
+
+Passed to each rule's `check` function:
+
+```ts
+interface LintContext {
+    source: string;
+    tree: StructuralNode[];
+    report: (info: ReportInfo) => void;
+    findFirst: (nodes: StructuralNode[], predicate: StructuralPredicate) => StructuralNode | undefined;
+    findAll: (nodes: StructuralNode[], predicate: StructuralPredicate) => StructuralNode[];
+    walk: (nodes: StructuralNode[], visitor: StructuralVisitor) => void;
+}
+```
+
+| Field       | Description                                           |
+|-------------|-------------------------------------------------------|
+| `source`    | Original source text                                  |
+| `tree`      | Structural tree (parsed with `trackPositions: true`)  |
+| `report`    | Emit a diagnostic                                     |
+| `findFirst` | Depth-first search — first match                      |
+| `findAll`   | Depth-first search — all matches                      |
+| `walk`      | Depth-first traversal — visit every node with context |
+
+### LintOptions
+
+```ts
+interface LintOptions {
+    rules: LintRule[];
+    overrides?: Record<string, DiagnosticSeverity | "off">;
+    parseOptions?: Omit<StructuralParseOptions, "trackPositions">;
+    onRuleError?: (context: { ruleId: string; error: unknown }) => void;
+}
+```
+
+| Field          | Description                                                                                                                       |
+|----------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `rules`        | Rules to run                                                                                                                      |
+| `overrides`    | Override severity per rule id — set to `"off"` to disable                                                                         |
+| `parseOptions` | Forwarded to `parseStructural` — pass the same `handlers`, `allowForms`, `syntax`, `tagName`, `depthLimit` as your runtime parser |
+| `onRuleError`  | Called when a rule throws — error is swallowed, other rules continue                                                              |
+
+### Diagnostic
+
+```ts
+interface Diagnostic {
+    ruleId: string;
+    severity: DiagnosticSeverity;
+    message: string;
+    span: SourceSpan;
+    node?: StructuralNode;
+    fix?: Fix;
+}
+```
+
+### DiagnosticSeverity
+
+```ts
+type DiagnosticSeverity = "error" | "warning" | "info" | "hint";
+```
+
+### Fix / TextEdit
+
+```ts
+interface Fix {
+    description: string;
+    edits: TextEdit[];
+}
+
+interface TextEdit {
+    span: SourceSpan;
+    newText: string;
+}
+```
+
+Fixes follow the LSP `TextEdit` model — each edit specifies a source range to replace.
+Use empty `newText` to delete, or a range with `start === end` to insert.
+
+### ReportInfo
+
+Argument to `ctx.report()` — same as `Diagnostic` but without `ruleId` (added by the runner)
+and with `severity` optional (defaults to the rule's severity):
+
+```ts
+type ReportInfo = Omit<Diagnostic, "ruleId" | "severity"> & {
+    severity?: DiagnosticSeverity;
+};
 ```
 
 ---

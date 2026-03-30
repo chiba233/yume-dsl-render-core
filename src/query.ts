@@ -11,6 +11,11 @@ export type StructuralPredicate = (
   ctx: StructuralVisitContext,
 ) => boolean;
 
+export type StructuralVisitor = (
+  node: StructuralNode,
+  ctx: StructuralVisitContext,
+) => void;
+
 /**
  * A `StructuralNode` whose type is one of the tag forms: inline, raw, or block.
  */
@@ -33,24 +38,27 @@ const getChildGroups = (node: StructuralNode): StructuralNode[][] => {
   }
 };
 
-// ── findFirst ──
-
-const walkFirst = (
+/**
+ * Core DFS engine. Pre-order traversal with early-exit support.
+ * Callback returns `true` to stop immediately (propagated up the stack).
+ */
+const dfs = (
   nodes: StructuralNode[],
-  predicate: StructuralPredicate,
+  callback: (node: StructuralNode, ctx: StructuralVisitContext) => boolean,
   parent: StructuralNode | null,
   depth: number,
-): StructuralNode | undefined => {
+): boolean => {
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i];
-    if (predicate(node, { parent, depth, index: i })) return node;
+    if (callback(node, { parent, depth, index: i })) return true;
     for (const group of getChildGroups(node)) {
-      const found = walkFirst(group, predicate, node, depth + 1);
-      if (found) return found;
+      if (dfs(group, callback, node, depth + 1)) return true;
     }
   }
-  return undefined;
+  return false;
 };
+
+// ── findFirst ──
 
 /**
  * Depth-first pre-order search. Returns the first node matching the predicate, or `undefined`.
@@ -58,25 +66,19 @@ const walkFirst = (
 export const findFirst = (
   nodes: StructuralNode[],
   predicate: StructuralPredicate,
-): StructuralNode | undefined => walkFirst(nodes, predicate, null, 0);
+): StructuralNode | undefined => {
+  let result: StructuralNode | undefined;
+  dfs(nodes, (node, ctx) => {
+    if (predicate(node, ctx)) {
+      result = node;
+      return true;
+    }
+    return false;
+  }, null, 0);
+  return result;
+};
 
 // ── findAll ──
-
-const walkAll = (
-  nodes: StructuralNode[],
-  predicate: StructuralPredicate,
-  parent: StructuralNode | null,
-  depth: number,
-  result: StructuralNode[],
-): void => {
-  for (let i = 0; i < nodes.length; i++) {
-    const node = nodes[i];
-    if (predicate(node, { parent, depth, index: i })) result.push(node);
-    for (const group of getChildGroups(node)) {
-      walkAll(group, predicate, node, depth + 1, result);
-    }
-  }
-};
 
 /**
  * Depth-first pre-order search. Returns all nodes matching the predicate.
@@ -86,8 +88,30 @@ export const findAll = (
   predicate: StructuralPredicate,
 ): StructuralNode[] => {
   const result: StructuralNode[] = [];
-  walkAll(nodes, predicate, null, 0, result);
+  dfs(nodes, (node, ctx) => {
+    if (predicate(node, ctx)) result.push(node);
+    return false;
+  }, null, 0);
   return result;
+};
+
+// ── walkStructural ──
+
+/**
+ * Depth-first pre-order traversal. Calls `visitor` for every node.
+ *
+ * Unlike `findFirst`/`findAll`, this is a pure side-effect visitor —
+ * it does not collect or return anything. Use it when your logic
+ * needs to inspect every node with full context (parent, depth, index).
+ */
+export const walkStructural = (
+  nodes: StructuralNode[],
+  visitor: StructuralVisitor,
+): void => {
+  dfs(nodes, (node, ctx) => {
+    visitor(node, ctx);
+    return false;
+  }, null, 0);
 };
 
 // ── nodeAtOffset ──

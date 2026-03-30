@@ -5,11 +5,23 @@
 - 新增 `StructuralNode[]` 树的结构查询工具：
   - `findFirst(nodes, predicate)` — 深度优先先序搜索，返回第一个匹配
   - `findAll(nodes, predicate)` — 深度优先先序搜索，返回所有匹配
+  - `walkStructural(nodes, visitor)` — 深度优先先序遍历，带上下文访问每个节点
   - `nodeAtOffset(nodes, offset)` — 按源码偏移查找最深节点（需 `trackPositions`）
   - `enclosingNode(nodes, offset)` — 按源码偏移查找最深的包围 tag 节点（需 `trackPositions`）
   - `StructuralTagNode` 类型 — inline / raw / block 节点的收窄联合；
     `enclosingNode` 返回 `StructuralTagNode | undefined`，调用者可直接访问 `.tag` 无需额外类型守卫
-  - `StructuralVisitContext` / `StructuralPredicate` 类型
+  - `StructuralVisitContext` / `StructuralPredicate` / `StructuralVisitor` 类型
+  - 内部重构：`findFirst`、`findAll`、`walkStructural` 共享同一个支持 early-exit 的 DFS 引擎
+- 新增 lint 框架：
+  - `lintStructural(source, options)` — 对结构解析树运行规则，返回按偏移排序的 `Diagnostic[]`
+  - `applyLintFixes(source, diagnostics)` — 将可修复的诊断应用到源码，以原子方式按 fix 粒度
+    处理（先来先赢冲突策略；内部 edit 自重叠的异常 fix 被整体拒绝）
+  - `LintRule` 接口：`id`、`severity?`、`check(ctx)`
+  - `LintContext` 提供 `source`、`tree`、`report()`、`findFirst`、`findAll`、`walk`
+  - `LintOptions` 接受 `parseOptions`（透传给 `parseStructural`——传入与运行时 parser 相同的
+    `handlers`、`allowForms`、`syntax`、`tagName`、`depthLimit`）、`overrides`、`onRuleError`
+  - 规则错误隔离——抛异常的规则被 catch，通过 `onRuleError` 上报，其余规则继续
+  - 类型：`Diagnostic`、`DiagnosticSeverity`、`Fix`、`TextEdit`、`ReportInfo`
 
 ### 1.0.3
 

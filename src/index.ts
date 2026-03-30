@@ -32,5 +32,18 @@ export {
 } from "./helpers.ts";
 
 // ── Structural query ──
-export { findFirst, findAll, nodeAtOffset, enclosingNode } from "./query.ts";
-export type { StructuralVisitContext, StructuralPredicate, StructuralTagNode } from "./query.ts";
+export { findFirst, findAll, walkStructural, nodeAtOffset, enclosingNode } from "./query.ts";
+export type { StructuralVisitContext, StructuralPredicate, StructuralVisitor, StructuralTagNode } from "./query.ts";
+
+// ── Lint ──
+export { lintStructural, applyLintFixes } from "./lint.ts";
+export type {
+  Diagnostic,
+  DiagnosticSeverity,
+  Fix,
+  LintContext,
+  LintOptions,
+  LintRule,
+  ReportInfo,
+  TextEdit,
+} from "./lint.ts";
