@@ -1545,6 +1545,25 @@ interface ParserLike {
 
 `yume-dsl-rich-text` 的 `createParser(...)` 满足此接口。
 
+### 性能
+
+基于 ~200 KB 文档实测（210K 字符，2562 个 token，含 1281 个真实标签节点）。
+测试环境：鲲鹏 920 aarch64 / Node v24.14.0 — 3 轮 × 每轮 5 次，取均值。
+
+| 步骤 | 耗时 | 说明 |
+|------|------|------|
+| 全量 `parseRichText` | ~1382 ms | 200 KB 完整 handler 管线 |
+| 全量 `parseStructural` + 追踪 | ~40.9 ms | 比 parseRichText 快 ~35 倍 |
+| `nodeAtOffset` 定位 | ~0.14 ms | 遍历缓存的结构树 |
+| **`parseSlice` 增量解析** | **~0.025 ms** | **只解析 36 字符的编辑节点** |
+| `buildPositionTracker` 重建 | ~1.06 ms | 仅换行变动时需要 |
+
+增量路径（定位 + 切片）≈ **0.17 ms** — 对比全量 parseRichText **快约 8000 倍**。
+`parseSlice` 的耗时与切片大小成正比，与文档大小无关。
+
+> 完整分析与代码示例：
+> [源码位置追踪 — 增量解析实战](https://github.com/chiba233/yumeDSL/wiki/zh-CN-%E6%BA%90%E7%A0%81%E4%BD%8D%E7%BD%AE%E8%BF%BD%E8%B8%AA#%E5%A2%9E%E9%87%8F%E8%A7%A3%E6%9E%90%E5%AE%9E%E6%88%98parseslice-%E5%88%B0%E5%BA%95%E6%9C%89%E5%A4%9A%E5%BF%AB)
+
 ---
 
 ## 错误处理

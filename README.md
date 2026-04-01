@@ -1557,6 +1557,25 @@ interface ParserLike {
 
 `createParser(...)` from `yume-dsl-rich-text` satisfies this interface.
 
+### Performance
+
+Measured on a ~200 KB document (210K chars, 2562 tokens, 1281 real tag nodes).
+Environment: Kunpeng 920 aarch64 / Node v24.14.0 — 3 rounds × 5 iterations, averaged.
+
+| Step | Time | Notes |
+|------|------|-------|
+| Full `parseRichText` | ~1382 ms | Full handler pipeline on 200 KB |
+| Full `parseStructural` + tracking | ~40.9 ms | ~35× faster than parseRichText |
+| `nodeAtOffset` (locate) | ~0.14 ms | Traverse cached structural tree |
+| **`parseSlice` (incremental)** | **~0.025 ms** | **Parse only the 36-char edited node** |
+| `buildPositionTracker` (rebuild) | ~1.06 ms | Only needed when newlines change |
+
+Incremental path (locate + slice) ≈ **0.17 ms** — roughly **8000× faster** than full parseRichText.
+`parseSlice` cost scales with the slice size, not the document size.
+
+> Full analysis with code examples:
+> [Source Position Tracking — Incremental parsing in practice](https://github.com/chiba233/yumeDSL/wiki/en-Source-Position-Tracking#incremental-parsing-in-practice-how-fast-is-parseslice)
+
 ---
 
 ## Error Handling
