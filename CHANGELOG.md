@@ -1,5 +1,14 @@
 # Changelog
 
+### 1.0.5
+
+- New: `LintOptions.failFast` — when `true`, a rule that throws immediately aborts
+  `lintStructural` with a wrapped error (includes rule id and original `.cause`).
+  Takes precedence over `onRuleError`. Default: `false`
+- New: `wrapRuleError` internal helper preserves error cause chain for `failFast` throws
+- Fix: `applyLintFixes` sort strategy — when two fixes start at the same offset,
+  wider edits (larger end offset) now win instead of arbitrary ordering
+
 ### 1.0.4
 
 - New structural query utilities for `StructuralNode[]` trees:

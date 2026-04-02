@@ -263,10 +263,28 @@ const cases: TestCase[] = [
         id: "throws",
         check: () => { throw new Error("boom"); },
       };
+      // Default: error is silently ignored, other rules still run
       const result = lintStructural("$$bold()$$", {
         rules: [throwingRule, noEmptyInline],
       });
       assert.equal(result.length, 1);
+      assert.equal(result[0].ruleId, "no-empty-inline");
+    },
+  },
+  {
+    name: "lintStructural: failFast throws on rule error",
+    run: () => {
+      const throwingRule: LintRule = {
+        id: "throws",
+        check: () => { throw new Error("boom"); },
+      };
+      assert.throws(
+        () => lintStructural("$$bold()$$", {
+          rules: [throwingRule, noEmptyInline],
+          failFast: true,
+        }),
+        /Lint rule "throws" failed: boom/,
+      );
     },
   },
 

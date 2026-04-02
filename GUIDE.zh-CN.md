@@ -21,7 +21,8 @@ Parser 给你树——这个包对树做事。
   [`enclosingNode`](#enclosingnodesnodes-offset) 在 `StructuralNode[]` 树上操作
 - **[Lint](#lint)** — [`lintStructural`](#lintstructuralsource-options) 对结构树运行自定义规则，
   上报带可选自动修复的 [`Diagnostic`](#diagnostic)；
-  [`applyLintFixes`](#applylintfixessource-diagnostics) 以原子方式应用修复
+  [`applyLintFixes`](#applylintfixessource-diagnostics) 以原子方式应用修复；
+  规则抛错默认静默跳过；可通过 `onRuleError` 或 `failFast` 控制
 - **[切片](#结构切片)** — [`parseSlice`](#parseslicefulltext-span-parser-tracker) 局部重解析，
   位置自动映射，无需全文重解析
 
@@ -39,12 +40,12 @@ text ──▶ yume-dsl-rich-text (parse) ──▶ TextToken[] / StructuralNode
                                    └─ slice      (区域重解析)
 ```
 
-| 包                                                                                  | 职责                                          |
-|------------------------------------------------------------------------------------|---------------------------------------------|
-| [`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL)                        | 解析器 — 文本到 token 树                           |
-| **`yume-dsl-token-walker`**                                                        | 操作层 — 解释、查询、lint、切片（本包）                     |
-| [`yume-dsl-shiki-highlight`](https://github.com/chiba233/yume-dsl-shiki-highlight) | 语法高亮 — token 着色或 TextMate 语法                |
-| [`yume-dsl-markdown-it`](https://github.com/chiba233/yume-dsl-markdown-it)         | markdown-it 插件 — 在 Markdown 中嵌入 DSL 标签      |
+| 包                                                                                  | 职责                                     |
+|------------------------------------------------------------------------------------|----------------------------------------|
+| [`yume-dsl-rich-text`](https://github.com/chiba233/yumeDSL)                        | 解析器 — 文本到 token 树                      |
+| **`yume-dsl-token-walker`**                                                        | 操作层 — 解释、查询、lint、切片（本包）                |
+| [`yume-dsl-shiki-highlight`](https://github.com/chiba233/yume-dsl-shiki-highlight) | 语法高亮 — token 着色或 TextMate 语法           |
+| [`yume-dsl-markdown-it`](https://github.com/chiba233/yume-dsl-markdown-it)         | markdown-it 插件 — 在 Markdown 中嵌入 DSL 标签 |
 
 ---
 
@@ -116,12 +117,12 @@ const html = Array.from(
 
 ## 从哪开始看
 
-| 你想做的事                                     | 去看                                        |
-|---------------------------------------------|---------------------------------------------|
-| 把 `TextToken[]` 变成 HTML / VNode / 字符串     | [同步 API](#同步-api) 或 [异步 API](#异步-api)     |
-| 在 `StructuralNode[]` 树上搜索 / 定位节点          | [结构查询](#结构查询)                               |
-| 用自定义规则校验 DSL 源码 + 自动修复                     | [Lint](#lint)                                |
-| 局部重解析某个区域，不重新 parse 全文                     | [结构切片](#结构切片)                               |
+| 你想做的事                                 | 去看                                    |
+|---------------------------------------|---------------------------------------|
+| 把 `TextToken[]` 变成 HTML / VNode / 字符串 | [同步 API](#同步-api) 或 [异步 API](#异步-api) |
+| 在 `StructuralNode[]` 树上搜索 / 定位节点      | [结构查询](#结构查询)                         |
+| 用自定义规则校验 DSL 源码 + 自动修复                | [Lint](#lint)                         |
+| 局部重解析某个区域，不重新 parse 全文                | [结构切片](#结构切片)                         |
 
 ---
 
@@ -166,18 +167,18 @@ const html = Array.from(
 
 **Lint**
 
-| 导出                   | 类别 | 说明                                                                         |
-|----------------------|----|----------------------------------------------------------------------------|
-| `lintStructural`     | 函数 | 对 DSL 源码运行 lint 规则 — 返回按偏移排序的 `Diagnostic[]`                               |
-| `applyLintFixes`     | 函数 | 将可修复的诊断应用到源码 — 返回新字符串                                                      |
-| `LintRule`           | 类型 | 规则接口 — `id`、`severity?`、`check(ctx)`                                       |
-| `LintContext`        | 类型 | 传给规则 `check` 的上下文 — `source`、`tree`、`report`、`findFirst`、`findAll`、`walk`  |
-| `LintOptions`        | 类型 | `lintStructural` 的选项 — `rules`、`overrides?`、`parseOptions?`、`onRuleError?` |
-| `Diagnostic`         | 类型 | 诊断结果 — `ruleId`、`severity`、`message`、`span`、`node?`、`fix?`                 |
-| `DiagnosticSeverity` | 类型 | `"error" \| "warning" \| "info" \| "hint"`                                 |
-| `Fix`                | 类型 | 自动修复 — `description`、`edits: TextEdit[]`                                   |
-| `TextEdit`           | 类型 | 源码编辑 — `span: SourceSpan`、`newText: string`                                |
-| `ReportInfo`         | 类型 | `ctx.report()` 的参数 — `Diagnostic` 去掉 `ruleId`，`severity` 可选                |
+| 导出                   | 类别 | 说明                                                                                     |
+|----------------------|----|----------------------------------------------------------------------------------------|
+| `lintStructural`     | 函数 | 对 DSL 源码运行 lint 规则 — 返回按偏移排序的 `Diagnostic[]`                                           |
+| `applyLintFixes`     | 函数 | 将可修复的诊断应用到源码 — 返回新字符串                                                                  |
+| `LintRule`           | 类型 | 规则接口 — `id`、`severity?`、`check(ctx)`                                                   |
+| `LintContext`        | 类型 | 传给规则 `check` 的上下文 — `source`、`tree`、`report`、`findFirst`、`findAll`、`walk`              |
+| `LintOptions`        | 类型 | `lintStructural` 的选项 — `rules`、`overrides?`、`parseOptions?`、`onRuleError?`、`failFast?` |
+| `Diagnostic`         | 类型 | 诊断结果 — `ruleId`、`severity`、`message`、`span`、`node?`、`fix?`                             |
+| `DiagnosticSeverity` | 类型 | `"error" \| "warning" \| "info" \| "hint"`                                             |
+| `Fix`                | 类型 | 自动修复 — `description`、`edits: TextEdit[]`                                               |
+| `TextEdit`           | 类型 | 源码编辑 — `span: SourceSpan`、`newText: string`                                            |
+| `ReportInfo`         | 类型 | `ctx.report()` 的参数 — `Diagnostic` 去掉 `ruleId`，`severity` 可选                            |
 
 **结构切片**
 
@@ -1283,6 +1284,9 @@ type StructuralVisitor = (
 
 面向 DSL 源码的最小 lint 框架。规则在结构解析树上运行，上报诊断结果并支持可选的自动修复。
 
+如果某条规则抛异常，默认情况下错误会被静默跳过，其他规则继续执行。
+用 `onRuleError` 来观察失败，或设置 `failFast: true` 立即中止。
+
 ### 快速上手
 
 ```ts
@@ -1326,7 +1330,7 @@ const fixed = applyLintFixes(source, diagnostics);
 const lintStructural: (source: string, options: LintOptions) => Diagnostic[];
 ```
 
-抛异常的规则会被隔离——错误通过 `onRuleError` 上报，其余规则继续运行。
+规则抛异常时默认静默跳过。用 `onRuleError` 观察失败，或用 `failFast: true` 立即中止。
 
 ### `applyLintFixes(source, diagnostics)`
 
@@ -1388,6 +1392,7 @@ interface LintOptions {
     overrides?: Record<string, DiagnosticSeverity | "off">;
     parseOptions?: Omit<StructuralParseOptions, "trackPositions">;
     onRuleError?: (context: { ruleId: string; error: unknown }) => void;
+    failFast?: boolean;
 }
 ```
 
@@ -1396,7 +1401,19 @@ interface LintOptions {
 | `rules`        | 要运行的规则                                                                                           |
 | `overrides`    | 按规则 id 覆盖严重程度——设为 `"off"` 可禁用                                                                    |
 | `parseOptions` | 透传给 `parseStructural`——传入与运行时 parser 相同的 `handlers`、`allowForms`、`syntax`、`tagName`、`depthLimit` |
-| `onRuleError`  | 规则抛异常时调用——错误被吞掉，其余规则继续                                                                           |
+| `onRuleError`  | 可选。规则抛异常时调用；错误会被吞掉，其余规则继续执行                                                                      |
+| `failFast`     | 为 `true` 时，规则抛异常立即中止 `lintStructural`，抛出包装后的错误。优先级高于 `onRuleError`。默认 `false`                    |
+
+fail-fast 示例：
+
+```ts
+try {
+    const diagnostics = lintStructural(source, {rules, failFast: true});
+    // 可以信任：没有 lint rule 在执行过程中崩掉
+} catch (error) {
+    // 某条 lint rule 自己出错了
+}
+```
 
 ### Diagnostic
 
@@ -1550,13 +1567,13 @@ interface ParserLike {
 基于 ~200 KB 文档实测（210K 字符，2562 个 token，含 1281 个真实标签节点）。
 测试环境：鲲鹏 920 aarch64 / Node v24.14.0 — 3 轮 × 每轮 5 次，取均值。
 
-| 步骤 | 耗时 | 说明 |
-|------|------|------|
-| 全量 `parseRichText` | ~1382 ms | 200 KB 完整 handler 管线 |
-| 全量 `parseStructural` + 追踪 | ~40.9 ms | 比 parseRichText 快 ~35 倍 |
-| `nodeAtOffset` 定位 | ~0.14 ms | 遍历缓存的结构树 |
-| **`parseSlice` 增量解析** | **~0.025 ms** | **只解析 36 字符的编辑节点** |
-| `buildPositionTracker` 重建 | ~1.06 ms | 仅换行变动时需要 |
+| 步骤                        | 耗时            | 说明                      |
+|---------------------------|---------------|-------------------------|
+| 全量 `parseRichText`        | ~1382 ms      | 200 KB 完整 handler 管线    |
+| 全量 `parseStructural` + 追踪 | ~40.9 ms      | 比 parseRichText 快 ~35 倍 |
+| `nodeAtOffset` 定位         | ~0.14 ms      | 遍历缓存的结构树                |
+| **`parseSlice` 增量解析**     | **~0.025 ms** | **只解析 36 字符的编辑节点**      |
+| `buildPositionTracker` 重建 | ~1.06 ms      | 仅换行变动时需要                |
 
 增量路径（定位 + 切片）≈ **0.17 ms** — 对比全量 parseRichText **快约 8000 倍**。
 `parseSlice` 的耗时与切片大小成正比，与文档大小无关。

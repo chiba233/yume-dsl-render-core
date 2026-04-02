@@ -1,4 +1,4 @@
-**English** | [中文](./README.zh-CN.md)
+**English** | [中文](GUIDE.zh-CN.md)
 
 # yume-dsl-token-walker
 
@@ -21,7 +21,8 @@ Parser gives you trees — this package does things with them.
   [`enclosingNode`](#enclosingnodesnodes-offset) on `StructuralNode[]` trees
 - **[Lint](#lint)** — [`lintStructural`](#lintstructuralsource-options) runs custom rules against the structural tree,
   reports [`Diagnostic`](#diagnostic)s with optional auto-fix;
-  [`applyLintFixes`](#applylintfixessource-diagnostics) applies them atomically
+  [`applyLintFixes`](#applylintfixessource-diagnostics) applies them atomically;
+  rule errors are silently ignored by default; opt into `onRuleError` or `failFast`
 - **[Slice](#structural-slice)** — [`parseSlice`](#parseslicefulltext-span-parser-tracker) re-parses a region
   with correct position mapping, no full-document re-parse
 
@@ -174,7 +175,7 @@ All public exports at a glance:
 | `applyLintFixes`     | function | Apply fixable diagnostics to source text — returns new string                               |
 | `LintRule`           | type     | Rule interface — `id`, `severity?`, `check(ctx)`                                            |
 | `LintContext`        | type     | Context passed to rule `check` — `source`, `tree`, `report`, `findFirst`, `findAll`, `walk` |
-| `LintOptions`        | type     | Options for `lintStructural` — `rules`, `overrides?`, `parseOptions?`, `onRuleError?`       |
+| `LintOptions`        | type     | Options for `lintStructural` — `rules`, `overrides?`, `parseOptions?`, `onRuleError?`, `failFast?` |
 | `Diagnostic`         | type     | Lint diagnostic — `ruleId`, `severity`, `message`, `span`, `node?`, `fix?`                  |
 | `DiagnosticSeverity` | type     | `"error" \| "warning" \| "info" \| "hint"`                                                  |
 | `Fix`                | type     | Auto-fix — `description`, `edits: TextEdit[]`                                               |
@@ -1293,6 +1294,9 @@ type StructuralVisitor = (
 A minimal lint framework for validating DSL source against custom rules. Rules operate on the
 structural parse tree and report diagnostics with optional auto-fixes.
 
+If a rule throws, the error is silently ignored by default and other rules continue.
+Use `onRuleError` to observe failures, or set `failFast: true` to abort immediately.
+
 ### Quick Start
 
 ```ts
@@ -1336,7 +1340,7 @@ then runs each rule's `check` function. Returns all collected diagnostics sorted
 const lintStructural: (source: string, options: LintOptions) => Diagnostic[];
 ```
 
-Rules that throw are isolated — the error is reported via `onRuleError` and remaining rules continue.
+Rules that throw are silently ignored by default. Use `onRuleError` to observe them, or `failFast: true` to abort.
 
 ### `applyLintFixes(source, diagnostics)`
 
@@ -1399,6 +1403,7 @@ interface LintOptions {
     overrides?: Record<string, DiagnosticSeverity | "off">;
     parseOptions?: Omit<StructuralParseOptions, "trackPositions">;
     onRuleError?: (context: { ruleId: string; error: unknown }) => void;
+    failFast?: boolean;
 }
 ```
 
@@ -1407,7 +1412,19 @@ interface LintOptions {
 | `rules`        | Rules to run                                                                                                                      |
 | `overrides`    | Override severity per rule id — set to `"off"` to disable                                                                         |
 | `parseOptions` | Forwarded to `parseStructural` — pass the same `handlers`, `allowForms`, `syntax`, `tagName`, `depthLimit` as your runtime parser |
-| `onRuleError`  | Called when a rule throws — error is swallowed, other rules continue                                                              |
+| `onRuleError`  | Optional. Called when a rule throws; the error is swallowed and other rules continue                                              |
+| `failFast`     | When `true`, a rule that throws immediately aborts `lintStructural` with a wrapped error. Takes precedence over `onRuleError`. Default: `false` |
+
+Example fail-fast behavior:
+
+```ts
+try {
+    const diagnostics = lintStructural(source, {rules, failFast: true});
+    // safe to trust: no rule crashed
+} catch (error) {
+    // one of the lint rules itself failed
+}
+```
 
 ### Diagnostic
 

@@ -81,10 +81,28 @@ export interface LintOptions {
   /**
    * Called when a rule throws during `check`.
    * The error is swallowed after `onRuleError` returns — other rules continue.
-   * If omitted, rule errors are silently ignored.
+   * If omitted, rule errors are silently ignored (other rules still run).
+   * To fail fast instead, set `failFast: true`.
    */
   onRuleError?: (context: { ruleId: string; error: unknown }) => void;
+  /**
+   * When true, a rule that throws during `check` immediately aborts
+   * `lintStructural` with a wrapped error — no further rules run.
+   * Takes precedence over `onRuleError`.
+   * Default: `false` (errors are reported via `onRuleError` or silently ignored).
+   */
+  failFast?: boolean;
 }
+
+const wrapRuleError = (ruleId: string, error: unknown): Error => {
+  if (error instanceof Error) {
+    const wrapped = new Error(`Lint rule "${ruleId}" failed: ${error.message}`);
+    (wrapped as Error & { cause?: unknown }).cause = error;
+    return wrapped;
+  }
+
+  return new Error(`Lint rule "${ruleId}" failed: ${String(error)}`);
+};
 
 /**
  * Lint DSL source text by running a set of rules against its structural tree.
@@ -124,6 +142,9 @@ export const lintStructural = (source: string, options: LintOptions): Diagnostic
         walk: walkStructural,
       });
     } catch (error) {
+      if (options.failFast) {
+        throw wrapRuleError(rule.id, error);
+      }
       if (options.onRuleError) {
         options.onRuleError({ ruleId: rule.id, error });
       }

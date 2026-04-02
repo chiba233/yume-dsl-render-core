@@ -1,5 +1,13 @@
 # 更新日志
 
+### 1.0.5
+
+- 新增：`LintOptions.failFast` —— 为 `true` 时，规则抛异常立即中止 `lintStructural`，
+  抛出包装后的错误（包含 rule id 和原始 `.cause`）。优先级高于 `onRuleError`。默认 `false`
+- 新增：内部 `wrapRuleError` 辅助函数，为 `failFast` 抛出的错误保留 cause 链
+- 修复：`applyLintFixes` 排序策略 —— 两个 fix 起点相同时，范围更宽的 edit（end offset 更大）
+  现在优先，而非任意排序
+
 ### 1.0.4
 
 - 新增 `StructuralNode[]` 树的结构查询工具：

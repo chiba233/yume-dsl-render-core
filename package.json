@@ -22,7 +22,6 @@
   "files": [
     "dist",
     "README.md",
-    "README.zh-CN.md",
     "LICENSE"
   ],
   "type": "module",
@@ -58,7 +57,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "yume-dsl-rich-text": "^1.0.11"
+    "yume-dsl-rich-text": "^1.1.0"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
