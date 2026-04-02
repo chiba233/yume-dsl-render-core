@@ -388,6 +388,11 @@ interface LintOptions {
 | `onRuleError`  | 规则抛异常时调用；错误吞掉，其他规则继续                       |
 | `failFast`     | `true` → 规则出错立即中止。优先级高于 `onRuleError`      |
 
+**错误行为一览：**
+- **默认：** 规则抛异常 → 吞掉，其他规则继续
+- **`onRuleError`：** 规则抛异常 → 调你的回调，其他规则继续
+- **`failFast: true`：** 规则抛异常 → `lintStructural` 立即重新抛出
+
 ### 关键类型
 
 ```ts

@@ -383,6 +383,11 @@ interface LintOptions {
 | `onRuleError` | Called when a rule throws; error swallowed, other rules continue |
 | `failFast` | `true` → abort immediately on rule error. Takes precedence over `onRuleError` |
 
+**Error behavior at a glance:**
+- **Default:** rule throws → swallowed, other rules continue
+- **`onRuleError`:** rule throws → your callback is called, other rules continue
+- **`failFast: true`:** rule throws → `lintStructural` immediately rethrows
+
 ### Key types
 
 ```ts
