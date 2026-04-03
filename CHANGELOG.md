@@ -1,5 +1,15 @@
 # Changelog
 
+### 1.0.7
+
+- Fix: eliminate stack overflow on deeply nested token trees — `flattenText`, `dfs`
+  (used by `findFirst` / `findAll` / `walkStructural`), `nodeAtOffset`, `nodePathAtOffset`,
+  and `enclosingNode` converted from recursion to explicit stack iteration. Nesting depth
+  now bounded only by heap memory, matching `yume-dsl-rich-text` 1.1.2's deep-nesting
+  capability
+- Documentation: performance numbers updated to reflect `yume-dsl-rich-text` 1.1.2
+  (`parseRichText` ~24 ms, `parseStructural` ~21 ms on 200 KB)
+
 ### 1.0.6
 
 - New: `nodePathAtOffset(nodes, offset)` — returns the full path from root to the

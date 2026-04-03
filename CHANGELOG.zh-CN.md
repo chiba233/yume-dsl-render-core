@@ -1,5 +1,14 @@
 # 更新日志
 
+### 1.0.7
+
+- 修复：消除深层嵌套 token 树上的栈溢出——`flattenText`、`dfs`
+  （`findFirst` / `findAll` / `walkStructural` 的底层）、`nodeAtOffset`、`nodePathAtOffset`、
+  `enclosingNode` 从递归改为显式栈迭代。嵌套深度仅受堆内存限制，
+  与 `yume-dsl-rich-text` 1.1.2 的深嵌套能力对齐
+- 文档：性能数据同步 `yume-dsl-rich-text` 1.1.2
+  （`parseRichText` ~24 ms，`parseStructural` ~21 ms，200 KB）
+
 ### 1.0.6
 
 - 新增：`nodePathAtOffset(nodes, offset)` —— 返回从根到最深命中节点的完整路径

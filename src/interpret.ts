@@ -10,40 +10,45 @@ import { reportError, toError } from "./internalErrors.ts";
 
 // ── Companion utility: flattenText ──
 
-const flattenTokenText = (
-  value: string | TextToken[],
-  seenValues: WeakSet<TextToken[]>,
-  seenTokens: WeakSet<TextToken>,
-): string => {
+// 迭代式 flatten：显式栈替代递归，任意嵌套深度不爆栈。
+// 循环引用检测保持不变（seenValues / seenTokens）。
+export const flattenText = (value: string | TextToken[]): string => {
   if (typeof value === "string") return value;
 
-  if (seenValues.has(value)) {
-    throw new Error("Circular DSL token value detected while flattening text");
-  }
-  seenValues.add(value);
-  try {
-    return value
-      .map((token) => {
-        if (seenTokens.has(token)) {
-          throw new Error(
-            `Circular DSL token detected while flattening text for type "${token.type}"`,
-          );
-        }
-        seenTokens.add(token);
-        try {
-          return flattenTokenText(token.value, seenValues, seenTokens);
-        } finally {
-          seenTokens.delete(token);
-        }
-      })
-      .join("");
-  } finally {
-    seenValues.delete(value);
-  }
-};
+  const parts: string[] = [];
+  const seenValues = new WeakSet<TextToken[]>();
+  const seenTokens = new WeakSet<TextToken>();
+  const stack: Array<{ arr: TextToken[]; idx: number }> = [];
 
-export const flattenText = (value: string | TextToken[]): string =>
-  flattenTokenText(value, new WeakSet<TextToken[]>(), new WeakSet<TextToken>());
+  if (seenValues.has(value)) throw new Error("Circular DSL token value detected while flattening text");
+  seenValues.add(value);
+  stack.push({ arr: value, idx: 0 });
+
+  while (stack.length > 0) {
+    const frame = stack[stack.length - 1];
+    if (frame.idx >= frame.arr.length) {
+      stack.pop();
+      continue;
+    }
+
+    const token = frame.arr[frame.idx++];
+    if (seenTokens.has(token)) {
+      throw new Error(`Circular DSL token detected while flattening text for type "${token.type}"`);
+    }
+
+    if (typeof token.value === "string") {
+      parts.push(token.value);
+      continue;
+    }
+
+    if (seenValues.has(token.value)) throw new Error("Circular DSL token value detected while flattening text");
+    seenValues.add(token.value);
+    seenTokens.add(token);
+    stack.push({ arr: token.value, idx: 0 });
+  }
+
+  return parts.join("");
+};
 
 // ── Internal: resolve & iterate ──
 

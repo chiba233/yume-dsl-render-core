@@ -40,19 +40,24 @@ const getChildGroups = (node: StructuralNode): StructuralNode[][] => {
 
 /**
  * Core DFS engine. Pre-order traversal with early-exit support.
- * Callback returns `true` to stop immediately (propagated up the stack).
+ * Iterative — no recursion, no stack overflow on deep nesting.
+ * Callback returns `true` to stop immediately.
  */
 const dfs = (
   nodes: StructuralNode[],
   callback: (node: StructuralNode, ctx: StructuralVisitContext) => boolean,
-  parent: StructuralNode | null,
-  depth: number,
 ): boolean => {
-  for (let i = 0; i < nodes.length; i++) {
-    const node = nodes[i];
-    if (callback(node, { parent, depth, index: i })) return true;
-    for (const group of getChildGroups(node)) {
-      if (dfs(group, callback, node, depth + 1)) return true;
+  const stack: Array<{ nodes: StructuralNode[]; idx: number; parent: StructuralNode | null; depth: number }> = [
+    { nodes, idx: 0, parent: null, depth: 0 },
+  ];
+  while (stack.length > 0) {
+    const frame = stack[stack.length - 1];
+    if (frame.idx >= frame.nodes.length) { stack.pop(); continue; }
+    const node = frame.nodes[frame.idx++];
+    if (callback(node, { parent: frame.parent, depth: frame.depth, index: frame.idx - 1 })) return true;
+    const groups = getChildGroups(node);
+    for (let g = groups.length - 1; g >= 0; g--) {
+      stack.push({ nodes: groups[g], idx: 0, parent: node, depth: frame.depth + 1 });
     }
   }
   return false;
@@ -74,7 +79,7 @@ export const findFirst = (
       return true;
     }
     return false;
-  }, null, 0);
+  });
   return result;
 };
 
@@ -91,7 +96,7 @@ export const findAll = (
   dfs(nodes, (node, ctx) => {
     if (predicate(node, ctx)) result.push(node);
     return false;
-  }, null, 0);
+  });
   return result;
 };
 
@@ -111,116 +116,111 @@ export const walkStructural = (
   dfs(nodes, (node, ctx) => {
     visitor(node, ctx);
     return false;
-  }, null, 0);
+  });
 };
 
 // ── nodeAtOffset ──
 
-const walkAtOffset = (
-  nodes: StructuralNode[],
-  offset: number,
-  best: StructuralNode | undefined,
-): StructuralNode | undefined => {
-  for (const node of nodes) {
-    const pos = node.position;
-    if (!pos) continue;
-    if (offset < pos.start.offset || offset >= pos.end.offset) continue;
-    best = node;
-    for (const group of getChildGroups(node)) {
-      best = walkAtOffset(group, offset, best);
-    }
-  }
-  return best;
-};
-
 /**
  * Find the deepest node whose source span contains the given source offset.
  *
- * The offset must be a string index into the **original source text** that was
- * passed to `parseStructural` — not an offset into rendered, printed, or
- * display text.
- *
+ * Iterative — no stack overflow on deep nesting.
  * Requires nodes parsed with `trackPositions: true`.
  * Returns `undefined` if no node contains the offset or positions are absent.
  */
 export const nodeAtOffset = (
   nodes: StructuralNode[],
   offset: number,
-): StructuralNode | undefined => walkAtOffset(nodes, offset, undefined);
+): StructuralNode | undefined => {
+  let best: StructuralNode | undefined;
+  const stack: StructuralNode[][] = [nodes];
+  while (stack.length > 0) {
+    const arr = stack.pop()!;
+    for (const node of arr) {
+      const pos = node.position;
+      if (!pos || offset < pos.start.offset || offset >= pos.end.offset) continue;
+      best = node;
+      const groups = getChildGroups(node);
+      for (let g = groups.length - 1; g >= 0; g--) stack.push(groups[g]);
+    }
+  }
+  return best;
+};
 
 // ── nodePathAtOffset ──
-
-const walkPathAtOffset = (
-  nodes: StructuralNode[],
-  offset: number,
-  path: StructuralNode[],
-): StructuralNode[] => {
-  for (const node of nodes) {
-    const pos = node.position;
-    if (!pos) continue;
-    if (offset < pos.start.offset || offset >= pos.end.offset) continue;
-    path.push(node);
-    for (const group of getChildGroups(node)) {
-      walkPathAtOffset(group, offset, path);
-    }
-    return path;
-  }
-  return path;
-};
 
 /**
  * Return the full path from root to the deepest node whose source span
  * contains the given offset. The first element is the outermost match,
  * the last element is the deepest (same as what `nodeAtOffset` returns).
  *
- * Useful for editor breadcrumbs, context-aware completion, and nesting
- * level display.
- *
+ * Iterative — no stack overflow on deep nesting.
  * Requires nodes parsed with `trackPositions: true`.
  * Returns an empty array if no node contains the offset.
  */
 export const nodePathAtOffset = (
   nodes: StructuralNode[],
   offset: number,
-): StructuralNode[] => walkPathAtOffset(nodes, offset, []);
+): StructuralNode[] => {
+  const path: StructuralNode[] = [];
+  let current: StructuralNode[] = nodes;
+  outer: for (;;) {
+    for (const node of current) {
+      const pos = node.position;
+      if (!pos || offset < pos.start.offset || offset >= pos.end.offset) continue;
+      path.push(node);
+      // descend into first matching child group
+      const groups = getChildGroups(node);
+      if (groups.length === 0) break outer;
+      // for block nodes (args + children), check both
+      let found = false;
+      for (const group of groups) {
+        for (const child of group) {
+          const cp = child.position;
+          if (cp && offset >= cp.start.offset && offset < cp.end.offset) {
+            current = group;
+            found = true;
+            break;
+          }
+        }
+        if (found) break;
+      }
+      if (!found) break outer;
+      continue outer;
+    }
+    break;
+  }
+  return path;
+};
 
 // ── enclosingNode ──
 
 const isTagNode = (node: StructuralNode): node is StructuralTagNode =>
   node.type === "inline" || node.type === "raw" || node.type === "block";
 
-const walkEnclosing = (
-  nodes: StructuralNode[],
-  offset: number,
-  best: StructuralTagNode | undefined,
-): StructuralTagNode | undefined => {
-  for (const node of nodes) {
-    const pos = node.position;
-    if (!pos) continue;
-    if (offset < pos.start.offset || offset >= pos.end.offset) continue;
-    if (isTagNode(node)) best = node;
-    for (const group of getChildGroups(node)) {
-      best = walkEnclosing(group, offset, best);
-    }
-  }
-  return best;
-};
-
 /**
  * Find the deepest tag node (inline / raw / block) whose source span
  * contains the given source offset.
  *
- * Unlike {@link nodeAtOffset}, this skips text, escape, and separator nodes —
- * it returns only structurally meaningful "enclosing" tag nodes.
- *
- * The offset must be a string index into the **original source text** that was
- * passed to `parseStructural` — not an offset into rendered, printed, or
- * display text.
- *
+ * Iterative — no stack overflow on deep nesting.
  * Requires nodes parsed with `trackPositions: true`.
  * Returns `undefined` if the offset is not inside any tag, or positions are absent.
  */
 export const enclosingNode = (
   nodes: StructuralNode[],
   offset: number,
-): StructuralTagNode | undefined => walkEnclosing(nodes, offset, undefined);
+): StructuralTagNode | undefined => {
+  let best: StructuralTagNode | undefined;
+  const stack: StructuralNode[][] = [nodes];
+  while (stack.length > 0) {
+    const arr = stack.pop()!;
+    for (const node of arr) {
+      const pos = node.position;
+      if (!pos || offset < pos.start.offset || offset >= pos.end.offset) continue;
+      if (isTagNode(node)) best = node;
+      const groups = getChildGroups(node);
+      for (let g = groups.length - 1; g >= 0; g--) stack.push(groups[g]);
+    }
+  }
+  return best;
+};
